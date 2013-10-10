@@ -39,4 +39,7 @@ typedef struct Config
 extern Mod *mod;
 extern Config *ds_config;
 
+EINTERN void ds_init(void);
+EINTERN void ds_shutdown(void);
+
 #endif

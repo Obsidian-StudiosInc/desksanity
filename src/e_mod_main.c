@@ -8,7 +8,7 @@ EINTERN Mod *mod = NULL;
 EINTERN Config *ds_config = NULL;
 
 static void
-_e_mod_ech_config_load(void)
+_e_mod_ds_config_load(void)
 {
 #undef T
 #undef D
@@ -17,7 +17,7 @@ _e_mod_ech_config_load(void)
    #define D conf_edd
    E_CONFIG_VAL(D, T, config_version, UINT);
 
-   ds_config = e_config_domain_load("module.desksanity", conf_edd);
+   //ds_config = e_config_domain_load("module.desksanity", conf_edd);
    if (ds_config)
      {
         if (!e_util_module_config_check("Desksanity", ds_config->config_version, MOD_CONFIG_FILE_VERSION))
@@ -63,9 +63,9 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
 
    e_configure_registry_category_del("extensions");
 
-   E_FN_DEL(e_object_del, mod->cfd);
+   E_FREE_FUNC(mod->cfd, e_object_del);
    ds_shutdown();
-   e_config_domain_save("module.desksanity", conf_edd, ds_config);
+   //e_config_domain_save("module.desksanity", conf_edd, ds_config);
    E_CONFIG_DD_FREE(conf_edd);
    E_FREE(mod);
    E_FREE_LIST(handlers, ecore_event_handler_del);
@@ -76,7 +76,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
 EAPI int
 e_modapi_save(E_Module *m EINA_UNUSED)
 {
-   e_config_domain_save("module.desksanity", conf_edd, ds_config);
+   //e_config_domain_save("module.desksanity", conf_edd, ds_config);
    return 1;
 }
 
