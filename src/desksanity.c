@@ -18,12 +18,15 @@ enum
 static void
 _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
+   /* hide/delete previous desk's mirror */
    evas_object_hide(dm_hide);
    E_FREE_FUNC(dm_hide, evas_object_del);
    desk_hide = NULL;
 
+   /* trigger desk flip end if there's a current desk set */
    if (desk_show) e_desk_flip_end(desk_show);
 
+   /* hide/delete current desk's mirror */
    evas_object_hide(dm_show);
    E_FREE_FUNC(dm_show, evas_object_del);
    desk_show = NULL;
@@ -32,16 +35,17 @@ _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj 
 static Evas_Object *
 dm_add(E_Desk *desk)
 {
-   Evas_Object *o, *dm;
-   o = dm = e_deskmirror_add(desk, 0, 0);
-   evas_object_geometry_set(dm, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
-   evas_object_show(dm);
-   //o = e_zoomap_add(e_comp_get(desk)->evas);
-   //e_zoomap_solid_set(o, 1);
-   //e_zoomap_always_set(o, 1);
-   //e_zoomap_child_set(o, dm);
+   Evas_Object *o;
+
+   /* add new mirror: not a pager or taskbar */
+   o = e_deskmirror_add(desk, 0, 0);
+   /* cover desk */
+   evas_object_geometry_set(o, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
+   /* don't pass events to smart children */
    evas_object_propagate_events_set(o, 0);
+   /* clip to current screen */
    evas_object_clip_set(o, desk->zone->bg_clip_object);
+   /* above all menus/popups/clients */
    evas_object_layer_set(o, E_LAYER_MENU + 100);
    evas_object_show(o);
    return o;
@@ -52,25 +56,34 @@ _ds_show(E_Desk *desk, int dx, int dy)
 {
    E_Client *ec;
 
+   /* free existing mirror */
    E_FREE_FUNC(dm_show, evas_object_del);
+
+   /* iterate all clients */
    E_CLIENT_FOREACH(desk->zone->comp, ec)
      {
+        /* skip clients from other screens, iconic clients, and ignorable clients */
         if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;
+        /* always keep user-moving clients visible */
         if (ec->moving)
           {
              e_client_desk_set(ec, desk);
              evas_object_show(ec->frame);
              continue;
           }
+        /* skip clients from other desks and clients visible on all desks */
         if ((ec->desk != desk) || (ec->sticky)) continue;
+        /* comp unignore the client */
         e_client_comp_hidden_set(ec, EINA_FALSE);
         ec->hidden = 0;
         evas_object_show(ec->frame);
      }
    desk_show = desk;
+   /* create mirror for current desk */
    dm_show = dm_add(desk);
    evas_object_name_set(dm_show, "dm_show");
 
+   /* pick a random flip */
    switch (rand() % DS_LAST)
      {
       int x, y, hx, hy, w, h;
@@ -79,30 +92,30 @@ _ds_show(E_Desk *desk, int dx, int dy)
       case DS_PAN:
         switch (dx)
           {
-           case -1:
+           case -1: // left -> right
              x = desk->zone->x - desk->zone->w;
              hx = desk->zone->x + desk->zone->w;
              break;
-           case 0:
+           case 0: // X
              x = desk->zone->x;
              hx = desk->zone->x;
              break;
-           case 1:
+           case 1: // left <- right
              x = desk->zone->x + desk->zone->w;
              hx = desk->zone->x - desk->zone->w;
              break;
           }
         switch (dy)
           {
-           case -1:
+           case -1: // up -> down
              y = desk->zone->y - desk->zone->h;
              hy = desk->zone->y + desk->zone->h;
              break;
-           case 0:
+           case 0: // X
              y = desk->zone->y;
              hy = desk->zone->y;
              break;
-           case 1:
+           case 1: // up <- down
              y = desk->zone->y + desk->zone->h;
              hy = desk->zone->y - desk->zone->h;
              break;
@@ -125,13 +138,13 @@ _ds_show(E_Desk *desk, int dx, int dy)
       case DS_GROW:
         x = hx = desk->zone->x;
         w = 1;
-        if (dx == 1)
+        if (dx == 1) // grow right to left
           x = desk->zone->x + desk->zone->w;
         else if (!dx)
           w = desk->zone->w;
         y = hy = desk->zone->y;
         h = 1;
-        if (dy == 1)
+        if (dy == 1) // grow bottom to top
           y = desk->zone->y + desk->zone->h;
         else if (!dy)
           h = desk->zone->h;
@@ -154,14 +167,17 @@ _ds_hide(E_Desk *desk)
    E_FREE_FUNC(dm_hide, evas_object_del);
    E_CLIENT_FOREACH(desk->zone->comp, ec)
      {
+        /* same as above */
         if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;
         if (ec->moving) continue;
         if ((ec->desk != desk) || (ec->sticky)) continue;
+        /* comp hide clients */
         e_client_comp_hidden_set(ec, EINA_TRUE);
         ec->hidden = 1;
         evas_object_hide(ec->frame);
      }
    desk_hide = desk;
+   /* create mirror for previous desk */
    dm_hide = dm_add(desk);
    evas_object_name_set(dm_hide, "dm_hide");
 }
@@ -170,6 +186,7 @@ _ds_hide(E_Desk *desk)
 static void
 _ds_flip(void *data EINA_UNUSED, E_Desk *desk, int dx, int dy, Eina_Bool show)
 {
+   /* this is called for desk hide, then for desk show. always in that order. always. */
    if (show)
      _ds_show(desk, dx, dy);
    else
@@ -179,6 +196,7 @@ _ds_flip(void *data EINA_UNUSED, E_Desk *desk, int dx, int dy, Eina_Bool show)
 EINTERN void
 ds_init(void)
 {
+   /* set a desk flip replacement callback */
    e_desk_flip_cb_set(_ds_flip, NULL);
 }
 
