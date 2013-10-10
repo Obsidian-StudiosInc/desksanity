@@ -5,30 +5,30 @@ MAINTAINERCLEANFILES = Makefile.in aclocal.m4 config.guess config.h.in \
 
 SUBDIRS = src
 
-if HAVE_PO
+#if HAVE_PO
 
-SUBDIRS += po
+#SUBDIRS += po
 
-endif
+#endif
 
 EDJE_FLAGS = -v \
 	     -id $(top_srcdir)/images
 
 filesdir = $(module_dir)/$(PACKAGE)
-files_DATA = module.desktop e-module-echievements.edj images/trophy.png
+files_DATA = module.desktop # e-module-desksanity.edj images/icon.png
 
 EXTRA_DIST = module.desktop.in \
-	     e_modules-echievements.spec.in \
-	     e-module-echievements.edc \
+	     e_modules-desksanity.spec.in \
+	     e-module-desksanity.edc \
 	     images/trophy.png
 
-e-module-echievements.edj: Makefile e-module-echievements.edc images/trophy.png
+#e-module-desksanity.edj: Makefile e-module-desksanity.edc images/icon.png
 
-e-module-echievements.edj:  e-module-echievements.edc
-	$(EDJE_CC) $(EDJE_FLAGS) $< $@
+#e-module-desksanity.edj:  e-module-desksanity.edc
+#	$(EDJE_CC) $(EDJE_FLAGS) $< $@
 
 clean-local:
-	 rm -rf *.edj module.desktop e_modules-echievements.spec *~
+	 rm -rf *.edj module.desktop e_modules-desksanity.spec *~
 
 uninstall-local:
 	 rm -rf $(DESTDIR)$(module_dir)/$(PACKAGE)
