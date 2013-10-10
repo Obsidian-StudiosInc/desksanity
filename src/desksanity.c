@@ -41,8 +41,8 @@ dm_add(E_Desk *desk)
    o = e_deskmirror_add(desk, 0, 0);
    /* cover desk */
    evas_object_geometry_set(o, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
-   /* don't pass events to smart children */
-   evas_object_propagate_events_set(o, 0);
+   /* don't receive events */
+   evas_object_pass_events_set(o, 1);
    /* clip to current screen */
    evas_object_clip_set(o, desk->zone->bg_clip_object);
    /* above all menus/popups/clients */
