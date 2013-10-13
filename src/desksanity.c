@@ -131,7 +131,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
         efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.00001, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_IN:
-        E_FREE_FUNC(dm_hide, evas_object_del);
         efx_zoom(dm_show, EFX_EFFECT_SPEED_LINEAR, 0.000001, 1.0, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_OUT:
@@ -140,7 +139,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
         efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.0000001, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_GROW:
-        E_FREE_FUNC(dm_hide, evas_object_del);
         x = hx = desk->zone->x;
         w = 1;
         if (dx == 1) // grow right to left
