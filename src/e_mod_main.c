@@ -52,6 +52,8 @@ e_modapi_init(E_Module *m)
    mod->module = m;
 
    ds_init();
+   e_moveresize_replace(EINA_TRUE);
+   mr_init();
 
    return m;
 }
@@ -64,6 +66,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    e_configure_registry_category_del("extensions");
 
    E_FREE_FUNC(mod->cfd, e_object_del);
+   mr_shutdown();
    ds_shutdown();
    //e_config_domain_save("module.desksanity", conf_edd, ds_config);
    E_CONFIG_DD_FREE(conf_edd);

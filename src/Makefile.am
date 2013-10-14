@@ -12,6 +12,7 @@ pkg_LTLIBRARIES = module.la
 module_la_SOURCES = e_mod_main.h \
 		    e_mod_main.c \
                     e_mod_config.c \
+                    moveresize.c \
                     desksanity.c
 
 module_la_LIBADD = @E_LIBS@

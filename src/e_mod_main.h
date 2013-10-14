@@ -42,4 +42,7 @@ extern Config *ds_config;
 EINTERN void ds_init(void);
 EINTERN void ds_shutdown(void);
 
+EINTERN void mr_shutdown(void);
+EINTERN void mr_init(void);
+
 #endif
