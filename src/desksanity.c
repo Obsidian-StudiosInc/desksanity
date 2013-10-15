@@ -12,6 +12,8 @@ enum
    DS_ZOOM_IN,
    DS_ZOOM_OUT,
    DS_GROW,
+   DS_ROTATE_OUT,
+   DS_ROTATE_IN,
    DS_LAST,
 } DS_Type;
 
@@ -157,6 +159,18 @@ _ds_show(E_Desk *desk, int dx, int dy)
         evas_object_show(o);
         e_comp_object_util_del_list_append(dm_show, o);
         efx_resize(o, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(hx, hy), desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
+        break;
+      case DS_ROTATE_OUT:
+        E_FREE_FUNC(dm_show, evas_object_del);
+        efx_move_circle(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+          720, 0.4, NULL, NULL);
+        efx_resize(dm_hide, EFX_EFFECT_SPEED_LINEAR, NULL, 1, 1, 0.4, _ds_end, NULL);
+        break;
+      case DS_ROTATE_IN:
+        evas_object_resize(dm_show, 1, 1);
+        efx_move_circle(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+          720, 0.4, NULL, NULL);
+        efx_resize(dm_show, EFX_EFFECT_SPEED_LINEAR, NULL, desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
         break;
       default: break;
      }
