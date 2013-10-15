@@ -75,6 +75,8 @@ _ds_show(E_Desk *desk, int dx, int dy)
           }
         /* skip clients from other desks and clients visible on all desks */
         if ((ec->desk != desk) || (ec->sticky)) continue;
+        e_comp_object_effect_unclip(ec->frame);
+        e_comp_object_effect_set(ec->frame, NULL);
         /* comp unignore the client */
         e_client_comp_hidden_set(ec, EINA_FALSE);
         ec->hidden = 0;
