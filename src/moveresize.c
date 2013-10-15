@@ -1,10 +1,12 @@
 #include "e_mod_main.h"
 
-static Eina_Inarray *ec_hooks = NULL;
+#define EC_HOOK_COUNT 6
 
 static Evas_Object *mr_obj_x = NULL;
 static Evas_Object *mr_obj_y = NULL;
 static Evas_Object *fade_obj = NULL;
+
+static E_Client_Hook *ec_hooks[EC_HOOK_COUNT] = {NULL};
 
 static void
 fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
@@ -90,31 +92,22 @@ resize_end(void *d EINA_UNUSED, E_Client *ec)
 EINTERN void
 mr_init(void)
 {
-   E_Client_Hook *ech;
+   unsigned int x = 0;
 
-   ec_hooks = eina_inarray_new(sizeof(E_Client_Hook*), 6);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_BEGIN, move_begin, NULL);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_UPDATE, move_update, NULL);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_END, move_end, NULL);
 
-   ech = e_client_hook_add(E_CLIENT_HOOK_MOVE_BEGIN, move_begin, NULL);
-   eina_inarray_push(ec_hooks, &ech);
-   ech = e_client_hook_add(E_CLIENT_HOOK_MOVE_UPDATE, move_update, NULL);
-   eina_inarray_push(ec_hooks, &ech);
-   ech = e_client_hook_add(E_CLIENT_HOOK_MOVE_END, move_end, NULL);
-   eina_inarray_push(ec_hooks, &ech);
-
-   ech = e_client_hook_add(E_CLIENT_HOOK_RESIZE_BEGIN, resize_begin, NULL);
-   eina_inarray_push(ec_hooks, &ech);
-   ech = e_client_hook_add(E_CLIENT_HOOK_RESIZE_UPDATE, resize_update, NULL);
-   eina_inarray_push(ec_hooks, &ech);
-   ech = e_client_hook_add(E_CLIENT_HOOK_RESIZE_END, resize_end, NULL);
-   eina_inarray_push(ec_hooks, &ech);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_RESIZE_BEGIN, resize_begin, NULL);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_RESIZE_UPDATE, resize_update, NULL);
+   ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_RESIZE_END, resize_end, NULL);
 }
 
 EINTERN void
 mr_shutdown(void)
 {
-   E_Client_Hook *ech;
+   unsigned int x = 0;
 
-   EINA_INARRAY_FOREACH(ec_hooks, ech)
-     e_client_hook_del(ech);
-   E_FREE_FUNC(ec_hooks, eina_inarray_free);
+   for (; x < EC_HOOK_COUNT; x++)
+     E_FREE_FUNC(ec_hooks[x], e_client_hook_del);
 }
