@@ -50,6 +50,7 @@ e_modapi_init(E_Module *m)
 
    mod = E_NEW(Mod, 1);
    mod->module = m;
+   mod->edje_file = eina_stringshare_add(buf);
 
    ds_init();
    e_moveresize_replace(EINA_TRUE);

@@ -29,6 +29,7 @@ typedef struct Mod
 {
    E_Config_Dialog *cfd;
    E_Module *module;
+   Eina_Stringshare *edje_file;
 } Mod;
 
 typedef struct Config

@@ -1,0 +1,33 @@
+collections {
+   group { name: "e/modules/desksanity/moveresize";
+      parts {
+         part { name: "outline"; type: TEXT; mouse_events: 0;
+            effect: OUTLINE;
+            scale: 1;
+            description { state: "default" 0.0;
+               rel1.to: "e.text";
+               rel2.to: "e.text";
+               color: 0 0 0 255;
+               color2: 0 0 0 255;
+               color3: 0 0 0 255;
+               text { font: "Sans"; size: 18;
+                  text_source: "e.text";
+                  min: 1 1;
+               }
+            }
+         }
+         part { name: "e.text"; type: TEXT; mouse_events: 0;
+            effect: GLOW;
+            scale: 1;
+            description { state: "default" 0.0;
+               color: 51 153 255 255;
+               color2: 51 153 255 24;
+               color3: 51 153 255 18;
+               text { font: "Sans"; size: 16;
+                  min: 1 1;
+               }
+            }
+         }
+      }
+   }
+}
