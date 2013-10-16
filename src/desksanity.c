@@ -26,7 +26,11 @@ _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj 
    desk_hide = NULL;
 
    /* trigger desk flip end if there's a current desk set */
-   if (desk_show) e_desk_flip_end(desk_show);
+   if (desk_show)
+     {
+        e_desk_flip_end(desk_show);
+        e_comp_shape_queue_block(e_comp_get(desk_show), 0);
+     }
 
    /* hide/delete current desk's mirror */
    evas_object_hide(dm_show);
@@ -86,7 +90,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
    /* create mirror for current desk */
    dm_show = dm_add(desk);
    evas_object_name_set(dm_show, "dm_show");
-
+   e_comp_shape_queue_block(e_comp_get(desk), 1);
    /* pick a random flip */
    switch (rand() % DS_LAST)
      {

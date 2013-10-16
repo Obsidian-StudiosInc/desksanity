@@ -45,7 +45,7 @@ clear_all(void)
 static void
 fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
-   e_comp_shape_queue(client->comp);
+   e_comp_shape_queue_block(client->comp, 0);
    clear_all();
 }
 
@@ -212,6 +212,7 @@ move_begin(void *d EINA_UNUSED, E_Client *ec)
 {
    clear_all();
    client = ec;
+   e_comp_shape_queue_block(ec->comp, 1);
 
    fade_setup(ec);
 
@@ -261,6 +262,7 @@ resize_begin(void *d EINA_UNUSED, E_Client *ec)
 
    clear_all();
    client = ec;
+   e_comp_shape_queue_block(ec->comp, 1);
    EINA_RECTANGLE_SET(&resize_start, ec->x, ec->y, ec->w, ec->h);
 
    fade_setup(ec);
