@@ -8,8 +8,6 @@ static Evas_Object *mr_line_y = NULL;
 static Evas_Object *move_text_y = NULL;
 
 static Evas_Object *resize_text = NULL;
-static Evas_Object *resize_text_start = NULL;
-static Eina_Rectangle resize_start = {0};
 static Evas_Object *resize_rect[4] = {NULL};
 
 
@@ -28,7 +26,6 @@ clear_all(void)
    E_FREE_FUNC(move_text_y, evas_object_del);
 
    E_FREE_FUNC(resize_text, evas_object_del);
-   E_FREE_FUNC(resize_text_start, evas_object_del);
    E_FREE_FUNC(resize_rect[0], evas_object_del);
    E_FREE_FUNC(resize_rect[1], evas_object_del);
    E_FREE_FUNC(resize_rect[2], evas_object_del);
@@ -106,6 +103,7 @@ resize_text_update(E_Client *ec)
 {
    char buf[128];
    int x, y, w, h, fw, fh;
+   E_Zone *zone1, *zone2;
 
    e_moveresize_client_extents(ec, &w, &h);
    e_comp_object_frame_wh_adjust(ec->frame, w, h, &fw, &fh);
@@ -161,6 +159,50 @@ resize_text_update(E_Client *ec)
         return;
      }
    evas_object_move(resize_text, x, y);
+
+   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+   if (!zone1) zone1 = ec->zone;
+   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+   if (!zone2) zone2 = ec->zone;
+   if (zone1 == zone2)
+     x = zone1->x + zone1->w;
+   else
+     x = zone2->x + zone2->w;
+   /* top */
+   evas_object_line_xy_set(resize_rect[0], zone1->x, ec->y, x, ec->y);
+
+   zone1 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+   if (!zone1) zone1 = ec->zone;
+   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+   if (!zone2) zone2 = ec->zone;
+   if (zone1 == zone2)
+     y = zone1->y + zone1->h;
+   else
+     y = zone2->y + zone2->h;
+   /* right */
+   evas_object_line_xy_set(resize_rect[1], ec->x + ec->w, zone1->y, ec->x + ec->w, y);
+
+   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+   if (!zone1) zone1 = ec->zone;
+   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+   if (!zone2) zone2 = ec->zone;
+   if (zone1 == zone2)
+     x = zone1->x + zone1->w;
+   else
+     x = zone2->x + zone2->w;
+   /* bottom */
+   evas_object_line_xy_set(resize_rect[2], zone1->x, ec->y + ec->h, x, ec->y + ec->h);
+
+   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+   if (!zone1) zone1 = ec->zone;
+   zone2 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+   if (!zone2) zone2 = ec->zone;
+   if (zone1 == zone2)
+     y = zone1->y + zone1->h;
+   else
+     y = zone2->y + zone2->h;
+   /* left */
+   evas_object_line_xy_set(resize_rect[3], ec->x, zone1->y, ec->x, y);
 }
 
 static Evas_Object *
@@ -257,41 +299,21 @@ static void
 resize_begin(void *d EINA_UNUSED, E_Client *ec)
 {
    unsigned int x;
-   int w, h, fw, fh;
-   char buf[128];
 
    clear_all();
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
-   EINA_RECTANGLE_SET(&resize_start, ec->x, ec->y, ec->w, ec->h);
 
    fade_setup(ec);
 
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
 
-   resize_text_start = text_add(ec->comp->evas);
-   e_moveresize_client_extents(ec, &w, &h);
-   e_comp_object_frame_wh_adjust(ec->frame, w, h, &fw, &fh);
-   if ((ec->w != fw) || (ec->h != fh))
-     snprintf(buf, sizeof(buf), "%dx%d (%dx%d)", w, h, ec->w, ec->h);
-   else
-     snprintf(buf, sizeof(buf), "%dx%d", ec->w, ec->h);
-   edje_object_part_text_set(resize_text_start, "e.text", buf);
-   edje_object_size_min_calc(resize_text_start, &w, &h);
-   evas_object_resize(resize_text_start, w, h);
-   e_comp_object_util_center_on(resize_text_start, ec->frame);
-   pulse(NULL, NULL, resize_text_start);
-
    for (x = 0; x < 4; x++)
      {
         resize_rect[x] = line_add(ec->comp->evas);
         pulse(NULL, NULL, resize_rect[x]);
      }
-   evas_object_line_xy_set(resize_rect[0], ec->x, ec->y, ec->x + ec->w, ec->y);
-   evas_object_line_xy_set(resize_rect[1], ec->x + ec->w, ec->y, ec->x + ec->w, ec->y + ec->h);
-   evas_object_line_xy_set(resize_rect[2], ec->x, ec->y + ec->h, ec->x + ec->w, ec->y + ec->h);
-   evas_object_line_xy_set(resize_rect[3], ec->x, ec->y, ec->x, ec->y + ec->h);
 
    resize_text = text_add(ec->comp->evas);
    resize_text_update(ec);
@@ -309,7 +331,6 @@ resize_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
    unsigned int x;
 
    efx_fade(resize_text, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-   efx_fade(resize_text_start, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    for (x = 0; x < 4; x++)
      {
         efx_fade(resize_rect[x], EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
