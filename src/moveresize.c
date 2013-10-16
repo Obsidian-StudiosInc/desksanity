@@ -160,49 +160,61 @@ resize_text_update(E_Client *ec)
      }
    evas_object_move(resize_text, x, y);
 
-   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
-   if (!zone1) zone1 = ec->zone;
-   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
-   if (!zone2) zone2 = ec->zone;
-   if (zone1 == zone2)
-     x = zone1->x + zone1->w;
-   else
-     x = zone2->x + zone2->w;
-   /* top */
-   evas_object_line_xy_set(resize_rect[0], zone1->x, ec->y, x, ec->y);
+   if (resize_rect[0])
+     {
+        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+        if (!zone1) zone1 = ec->zone;
+        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+        if (!zone2) zone2 = ec->zone;
+        if (zone1 == zone2)
+          x = zone1->x + zone1->w;
+        else
+          x = zone2->x + zone2->w;
+        /* top */
+        evas_object_line_xy_set(resize_rect[0], zone1->x, ec->y, x, ec->y);
+     }
 
-   zone1 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
-   if (!zone1) zone1 = ec->zone;
-   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
-   if (!zone2) zone2 = ec->zone;
-   if (zone1 == zone2)
-     y = zone1->y + zone1->h;
-   else
-     y = zone2->y + zone2->h;
-   /* right */
-   evas_object_line_xy_set(resize_rect[1], ec->x + ec->w, zone1->y, ec->x + ec->w, y);
+   if (resize_rect[1])
+     {
+        zone1 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+        if (!zone1) zone1 = ec->zone;
+        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+        if (!zone2) zone2 = ec->zone;
+        if (zone1 == zone2)
+          y = zone1->y + zone1->h;
+        else
+          y = zone2->y + zone2->h;
+        /* right */
+        evas_object_line_xy_set(resize_rect[1], ec->x + ec->w, zone1->y, ec->x + ec->w, y);
+     }
 
-   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
-   if (!zone1) zone1 = ec->zone;
-   zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
-   if (!zone2) zone2 = ec->zone;
-   if (zone1 == zone2)
-     x = zone1->x + zone1->w;
-   else
-     x = zone2->x + zone2->w;
-   /* bottom */
-   evas_object_line_xy_set(resize_rect[2], zone1->x, ec->y + ec->h, x, ec->y + ec->h);
+   if (resize_rect[2])
+     {
+        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+        if (!zone1) zone1 = ec->zone;
+        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+        if (!zone2) zone2 = ec->zone;
+        if (zone1 == zone2)
+          x = zone1->x + zone1->w;
+        else
+          x = zone2->x + zone2->w;
+        /* bottom */
+        evas_object_line_xy_set(resize_rect[2], zone1->x, ec->y + ec->h, x, ec->y + ec->h);
+     }
 
-   zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
-   if (!zone1) zone1 = ec->zone;
-   zone2 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
-   if (!zone2) zone2 = ec->zone;
-   if (zone1 == zone2)
-     y = zone1->y + zone1->h;
-   else
-     y = zone2->y + zone2->h;
-   /* left */
-   evas_object_line_xy_set(resize_rect[3], ec->x, zone1->y, ec->x, y);
+   if (resize_rect[3])
+     {
+        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+        if (!zone1) zone1 = ec->zone;
+        zone2 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+        if (!zone2) zone2 = ec->zone;
+        if (zone1 == zone2)
+          y = zone1->y + zone1->h;
+        else
+          y = zone2->y + zone2->h;
+        /* left */
+        evas_object_line_xy_set(resize_rect[3], ec->x, zone1->y, ec->x, y);
+     }
 }
 
 static Evas_Object *
@@ -309,11 +321,41 @@ resize_begin(void *d EINA_UNUSED, E_Client *ec)
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
 
-   for (x = 0; x < 4; x++)
+   switch (ec->resize_mode)
      {
-        resize_rect[x] = line_add(ec->comp->evas);
-        pulse(NULL, NULL, resize_rect[x]);
+      case E_POINTER_RESIZE_TL:
+        resize_rect[0] = line_add(ec->comp->evas);
+        resize_rect[3] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_T:
+        resize_rect[0] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_TR:
+        resize_rect[0] = line_add(ec->comp->evas);
+        resize_rect[1] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_R:
+        resize_rect[1] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_BR:
+        resize_rect[1] = line_add(ec->comp->evas);
+        resize_rect[2] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_B:
+        resize_rect[2] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_BL:
+        resize_rect[2] = line_add(ec->comp->evas);
+        resize_rect[3] = line_add(ec->comp->evas);
+        break;
+      case E_POINTER_RESIZE_L:
+        resize_rect[3] = line_add(ec->comp->evas);
+        break;
+      default: break;
      }
+   for (x = 0; x < 4; x++)
+     if (resize_rect[x])
+       pulse(NULL, NULL, resize_rect[x]);
 
    resize_text = text_add(ec->comp->evas);
    resize_text_update(ec);
@@ -333,6 +375,7 @@ resize_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
    efx_fade(resize_text, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    for (x = 0; x < 4; x++)
      {
+        if (!resize_rect[x]) continue;
         efx_fade(resize_rect[x], EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
         efx_queue_clear(resize_rect[x]);
      }
