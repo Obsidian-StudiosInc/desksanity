@@ -6,11 +6,12 @@ collections {
             scale: 1;
             description { state: "default" 0.0;
                rel1.to: "e.text";
+               rel1.offset: -1 -1;
                rel2.to: "e.text";
                color: 0 0 0 255;
                color2: 0 0 0 255;
                color3: 0 0 0 255;
-               text { font: "Sans"; size: 18;
+               text { font: "Sans"; size: 16;
                   text_source: "e.text";
                   min: 1 1;
                }
