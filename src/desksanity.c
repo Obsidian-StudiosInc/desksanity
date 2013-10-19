@@ -19,6 +19,8 @@ typedef enum
    DS_SLIDE_SPLIT,
    DS_QUAD_SPLIT,
    DS_QUAD_MERGE,
+   DS_BLINK,
+   DS_VIEWPORT,
    DS_LAST,
 } DS_Type;
 
@@ -328,6 +330,35 @@ _ds_show(E_Desk *desk, int dx, int dy)
                 EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
                 1, 1 ,0.8, (i == 3) ? _ds_end : NULL, NULL);
            }
+      }
+        break;
+      case DS_BLINK:
+      {
+         Evas_Object *clip;
+
+         E_FREE_FUNC(dm_show, evas_object_del);
+         clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
+         evas_object_clip_set(dm_hide, clip);
+         e_comp_object_util_del_list_append(dm_hide, clip);
+         evas_object_show(clip);
+         efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
+           EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
+           desk->zone->w, 1, 0.45, _ds_end, NULL);
+      }
+      case DS_VIEWPORT:
+      {
+         Evas_Object *clip;
+
+         E_FREE_FUNC(dm_show, evas_object_del);
+         clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
+         evas_object_clip_set(dm_hide, clip);
+         e_comp_object_util_del_list_append(dm_hide, clip);
+         evas_object_show(clip);
+         efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
+           EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+           1, 1, 0.6, _ds_end, NULL);
       }
         break;
       default: break;
