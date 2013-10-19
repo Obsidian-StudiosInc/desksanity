@@ -14,6 +14,7 @@ enum
    DS_GROW,
    DS_ROTATE_OUT,
    DS_ROTATE_IN,
+   DS_SLIDE_SPLIT,
    DS_LAST,
 } DS_Type;
 
@@ -177,6 +178,68 @@ _ds_show(E_Desk *desk, int dx, int dy)
         efx_move_circle(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
           720, 0.4, NULL, NULL);
         efx_resize(dm_show, EFX_EFFECT_SPEED_LINEAR, NULL, desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
+        break;
+      case DS_SLIDE_SPLIT:
+      {
+         Evas_Object *dm_hide2, *clip1, *clip2;
+         //int x, y, w, h; //clip1
+         int xx, yy, ww, hh; //clip2
+         int ex, ey, exx, eyy; //move coords
+
+         dm_hide2 = dm_add(desk_hide);
+         e_comp_object_util_del_list_append(dm_hide, dm_hide2);
+
+         clip1 = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
+         x = desk_show->zone->x;
+         y = desk_show->zone->y;
+         w = desk_show->zone->w;
+         h = desk_show->zone->h;
+         if (dy)
+           w /= 2;
+         else
+           h /= 2;
+         evas_object_geometry_set(clip1, x, y, w, h);
+         e_comp_object_util_del_list_append(dm_hide, clip1);
+         evas_object_clip_set(dm_hide, clip1);
+         evas_object_show(clip1);
+
+         clip2 = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
+         xx = desk_show->zone->x;
+         yy = desk_show->zone->y;
+         ww = w;
+         hh = h;
+         if (dx)
+           yy += h;
+         else
+           xx += w;
+         evas_object_geometry_set(clip2, xx, yy, ww, hh);
+         e_comp_object_util_del_list_append(dm_hide, clip2);
+         evas_object_clip_set(dm_hide2, clip2);
+         evas_object_show(clip2);
+
+         E_FREE_FUNC(dm_show, evas_object_del);
+
+         if (dx)
+           {
+              ex = desk_show->zone->x - (dx * desk_show->zone->w);
+              exx = desk_show->zone->x + (dx * desk_show->zone->w);
+           }
+         else
+           ex = exx = desk_show->zone->x;
+         if (dy)
+           {
+              ey = desk_show->zone->y - (dy * desk_show->zone->h);
+              eyy = desk_show->zone->y + (dy * desk_show->zone->h);
+           }
+         else
+           ey = eyy = desk_show->zone->y;
+         efx_move(dm_hide, EFX_EFFECT_SPEED_ACCELERATE,
+           EFX_POINT(ex, ey),
+           0.5, NULL, NULL);
+         efx_move(dm_hide2, EFX_EFFECT_SPEED_ACCELERATE,
+           EFX_POINT(exx, eyy),
+           0.5, _ds_end, NULL);
+      }
         break;
       default: break;
      }
