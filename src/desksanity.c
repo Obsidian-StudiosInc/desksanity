@@ -7,20 +7,20 @@ static Evas_Object *dm_hide = NULL;
 
 typedef enum
 {
-   DS_PAN,
-   DS_FADE_OUT,
-   DS_FADE_IN,
-   DS_BATMAN,
-   DS_ZOOM_IN,
-   DS_ZOOM_OUT,
-   DS_GROW,
-   DS_ROTATE_OUT,
-   DS_ROTATE_IN,
-   DS_SLIDE_SPLIT,
-   DS_QUAD_SPLIT,
-   DS_QUAD_MERGE,
-   DS_BLINK,
-   DS_VIEWPORT,
+   DS_PAN, //slide desk in direction of flip
+   DS_FADE_OUT, //current desk fades to transparent
+   DS_FADE_IN, //new desk fades in from transparent
+   DS_BATMAN, //adam west is calling
+   DS_ZOOM_IN, //zoom in to new desk
+   DS_ZOOM_OUT, //zoom out from old desk
+   DS_GROW, //grow the view of the new desk based on flip direction
+   DS_ROTATE_OUT, //spiral current desk out while shrinking
+   DS_ROTATE_IN, //spiral new desk in while growing
+   DS_SLIDE_SPLIT, //split screen in X parts and slide away based on flip direction
+   DS_QUAD_SPLIT, //split screen into quads and move towards corners
+   DS_QUAD_MERGE, //split screen into quads and move towards center
+   DS_BLINK, //like blinking your eye
+   DS_VIEWPORT, //current desk viewport shrinks towards 1x1 at center
    DS_LAST,
 } DS_Type;
 
@@ -206,64 +206,57 @@ _ds_show(E_Desk *desk, int dx, int dy)
         break;
       case DS_SLIDE_SPLIT:
       {
-         Evas_Object *dm_hide2, *clip1, *clip2;
-         //int x, y, w, h; //clip1
-         int xx, yy, ww, hh; //clip2
-         int ex, ey, exx, eyy; //move coords
-
-         dm_hide2 = dm_add(desk_hide);
-         e_comp_object_util_del_list_append(dm_hide, dm_hide2);
-
-         clip1 = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
-         x = desk_show->zone->x;
-         y = desk_show->zone->y;
-         w = desk_show->zone->w;
-         h = desk_show->zone->h;
-         if (dy)
-           w /= 2;
-         else
-           h /= 2;
-         evas_object_geometry_set(clip1, x, y, w, h);
-         e_comp_object_util_del_list_append(dm_hide, clip1);
-         evas_object_clip_set(dm_hide, clip1);
-         evas_object_show(clip1);
-
-         clip2 = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
-         xx = desk_show->zone->x;
-         yy = desk_show->zone->y;
-         ww = w;
-         hh = h;
-         if (dx)
-           yy += h;
-         else
-           xx += w;
-         evas_object_geometry_set(clip2, xx, yy, ww, hh);
-         e_comp_object_util_del_list_append(dm_hide, clip2);
-         evas_object_clip_set(dm_hide2, clip2);
-         evas_object_show(clip2);
+         Evas_Object *dmh, *clip;
+         Evas_Point exy;
+         unsigned int i, num;
 
          E_FREE_FUNC(dm_show, evas_object_del);
+         num = (rand() % 4) + 2;
 
-         if (dx)
-           {
-              ex = desk_show->zone->x - (dx * desk_show->zone->w);
-              exx = desk_show->zone->x + (dx * desk_show->zone->w);
-           }
-         else
-           ex = exx = desk_show->zone->x;
+         dmh = dm_hide;
+         /* create other parts of split */
+         w = desk->zone->w;
+         h = desk->zone->h;
          if (dy)
-           {
-              ey = desk_show->zone->y - (dy * desk_show->zone->h);
-              eyy = desk_show->zone->y + (dy * desk_show->zone->h);
-           }
+           w /= num;
          else
-           ey = eyy = desk_show->zone->y;
-         efx_move(dm_hide, EFX_EFFECT_SPEED_ACCELERATE,
-           EFX_POINT(ex, ey),
-           0.5, NULL, NULL);
-         efx_move(dm_hide2, EFX_EFFECT_SPEED_ACCELERATE,
-           EFX_POINT(exx, eyy),
-           0.5, _ds_end, NULL);
+           h /= num;
+         for (i = 0; i < num; i++)
+           {
+              if (!dmh)
+                {
+                   /* create other deskmirrors where necessary */
+                   dmh = dm_add(desk_hide);
+                   e_comp_object_util_del_list_append(dm_hide, dmh);
+                }
+              clip = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
+              e_comp_object_util_del_list_append(dm_hide, clip);
+              if (dx)
+                evas_object_geometry_set(clip, desk->zone->x, desk->zone->y + (i * h), w, h);
+              else
+                evas_object_geometry_set(clip, desk->zone->x + (i * w), desk->zone->y, w, h);
+              evas_object_clip_set(dmh, clip);
+              evas_object_show(clip);
+              exy.x = desk->zone->x;
+              exy.y = desk->zone->y;
+              if (dx)
+                {
+                   if (i % 2 == 0)
+                     exy.x = desk_show->zone->x - (dx * desk_show->zone->w);
+                   else
+                     exy.x = desk_show->zone->x + (dx * desk_show->zone->w);
+                }
+              if (dy)
+                {
+                   if (i % 2 == 0)
+                     exy.y = desk_show->zone->y - (dy * desk_show->zone->h);
+                   else
+                     exy.y = desk_show->zone->y + (dy * desk_show->zone->h);
+                }
+              efx_move(dmh, EFX_EFFECT_SPEED_ACCELERATE,
+                &exy, 0.5, (i == (num - 1)) ? _ds_end : NULL, NULL);
+              dmh = NULL;
+           }
       }
         break;
       case DS_QUAD_SPLIT:
@@ -271,11 +264,13 @@ _ds_show(E_Desk *desk, int dx, int dy)
          int i;
          Evas_Object *dmh[4] = {NULL};
          Evas_Object *clip[4];
+         /* set up quadrant position coords */
          Evas_Point cxy[4] = {{desk->zone->x, desk->zone->y},
                               {desk->zone->x + (desk->zone->w / 2), desk->zone->y},
                               {desk->zone->x, desk->zone->y + (desk->zone->h / 2)},
                               {desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)}
                              };
+         /* set up quadrant effect coords */
          Evas_Point exy[4] = {{desk->zone->x - desk->zone->w, desk->zone->y - desk->zone->h},
                               {desk->zone->x + (desk->zone->w * 2), desk->zone->y - desk->zone->h},
                               {desk->zone->x - desk->zone->w, desk->zone->y + (desk->zone->h / 2)},
@@ -288,14 +283,18 @@ _ds_show(E_Desk *desk, int dx, int dy)
            {
               if (!dmh[i])
                 {
+                   /* create other 3 quadrants */
                    dmh[i] = dm_add(desk_hide);
                    e_comp_object_util_del_list_append(dm_hide, dmh[i]);
                 }
+              /* clip the quad */
               clip[i] = evas_object_rectangle_add(e_comp_get(desk)->evas);
               e_comp_object_util_del_list_append(dm_hide, clip[i]);
+              /* lay out 2x2 grid */
               evas_object_geometry_set(clip[i], cxy[i].x, cxy[i].y, desk->zone->w / 2, desk->zone->h / 2);
               evas_object_clip_set(dmh[i], clip[i]);
               evas_object_show(clip[i]);
+              /* apply effect coords */
               efx_move(clip[i], EFX_EFFECT_SPEED_ACCELERATE,
                 &exy[i], 0.8, (i == 3) ? _ds_end : NULL, NULL);
            }
@@ -306,6 +305,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
          int i;
          Evas_Object *dmh[4] = {NULL};
          Evas_Object *clip[4];
+         /* set up quadrant position coords */
          Evas_Point cxy[4] = {{desk->zone->x, desk->zone->y},
                               {desk->zone->x + (desk->zone->w / 2), desk->zone->y},
                               {desk->zone->x, desk->zone->y + (desk->zone->h / 2)},
@@ -318,14 +318,18 @@ _ds_show(E_Desk *desk, int dx, int dy)
            {
               if (!dmh[i])
                 {
+                   /* create other 3 quadrants */
                    dmh[i] = dm_add(desk_hide);
                    e_comp_object_util_del_list_append(dm_hide, dmh[i]);
                 }
+              /* clip the quad */
               clip[i] = evas_object_rectangle_add(e_comp_get(desk)->evas);
               e_comp_object_util_del_list_append(dm_hide, clip[i]);
+              /* lay out 2x2 grid */
               evas_object_geometry_set(clip[i], cxy[i].x, cxy[i].y, desk->zone->w / 2, desk->zone->h / 2);
               evas_object_clip_set(dmh[i], clip[i]);
               evas_object_show(clip[i]);
+              /* resize all quads to 1x1 while moving towards center */
               efx_resize(clip[i], EFX_EFFECT_SPEED_ACCELERATE,
                 EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
                 1, 1 ,0.8, (i == 3) ? _ds_end : NULL, NULL);
@@ -338,10 +342,12 @@ _ds_show(E_Desk *desk, int dx, int dy)
 
          E_FREE_FUNC(dm_show, evas_object_del);
          clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_clip_set(dm_hide, clip);
          e_comp_object_util_del_list_append(dm_hide, clip);
          evas_object_show(clip);
+         /* resize clip to 1px high while moving towards center */
          efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
            EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
            desk->zone->w, 1, 0.45, _ds_end, NULL);
@@ -352,10 +358,12 @@ _ds_show(E_Desk *desk, int dx, int dy)
 
          E_FREE_FUNC(dm_show, evas_object_del);
          clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_clip_set(dm_hide, clip);
          e_comp_object_util_del_list_append(dm_hide, clip);
          evas_object_show(clip);
+         /* resize clip to 1x1 while moving towards center */
          efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
            EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
            1, 1, 0.6, _ds_end, NULL);
