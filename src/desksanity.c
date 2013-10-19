@@ -5,7 +5,7 @@ static Evas_Object *dm_show = NULL;
 static E_Desk *desk_hide = NULL;
 static Evas_Object *dm_hide = NULL;
 
-enum
+typedef enum
 {
    DS_PAN,
    DS_BATMAN,
@@ -18,6 +18,8 @@ enum
    DS_QUAD_SPLIT,
    DS_LAST,
 } DS_Type;
+
+static DS_Type cur_type = DS_PAN;
 
 static void
 _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
@@ -63,6 +65,7 @@ static void
 _ds_show(E_Desk *desk, int dx, int dy)
 {
    E_Client *ec;
+   DS_Type use_type;
 
    /* free existing mirror */
    E_FREE_FUNC(dm_show, evas_object_del);
@@ -93,8 +96,15 @@ _ds_show(E_Desk *desk, int dx, int dy)
    dm_show = dm_add(desk);
    evas_object_name_set(dm_show, "dm_show");
    e_comp_shape_queue_block(e_comp_get(desk), 1);
+   /* guarantee that the user gets to see each flip
+    * at least once
+    */
+   if (cur_type < DS_LAST)
+     use_type = cur_type++;
+   else
+     use_type = rand() % DS_LAST;
    /* pick a random flip */
-   switch (rand() % DS_LAST)
+   switch (use_type)
      {
       int x, y, hx, hy, w, h;
       Evas_Object *o;
@@ -327,4 +337,5 @@ ds_shutdown(void)
 {
    e_desk_flip_cb_set(NULL, NULL);
    _ds_end(NULL, NULL, NULL);
+   cur_type = DS_PAN;
 }
