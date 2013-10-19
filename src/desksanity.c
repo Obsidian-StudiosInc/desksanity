@@ -8,6 +8,8 @@ static Evas_Object *dm_hide = NULL;
 typedef enum
 {
    DS_PAN,
+   DS_FADE_OUT,
+   DS_FADE_IN,
    DS_BATMAN,
    DS_ZOOM_IN,
    DS_ZOOM_OUT,
@@ -143,6 +145,15 @@ _ds_show(E_Desk *desk, int dx, int dy)
         evas_object_move(dm_show, x, y);
         efx_move(dm_hide, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(hx, hy), 0.2, NULL, NULL);
         efx_move(dm_show, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(desk->zone->x, desk->zone->y), 0.2, _ds_end, NULL);
+        break;
+      case DS_FADE_OUT:
+        E_FREE_FUNC(dm_show, evas_object_del);
+        efx_fade(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.25, _ds_end, NULL);
+        break;
+      case DS_FADE_IN:
+        E_FREE_FUNC(dm_hide, evas_object_del);
+        efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
+        efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.25, _ds_end, NULL);
         break;
       case DS_BATMAN:
         E_FREE_FUNC(dm_show, evas_object_del);
