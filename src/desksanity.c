@@ -67,6 +67,17 @@ dm_add(E_Desk *desk)
 }
 
 static void
+_ds_blink2(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
+{
+   E_FREE_FUNC(dm_hide, evas_object_del);
+   evas_object_show(dm_show);
+   efx_resize(obj, EFX_EFFECT_SPEED_DECELERATE,
+     EFX_POINT(desk_show->zone->x, desk_show->zone->y),
+     desk_show->zone->w, desk_show->zone->h,
+     0.45, _ds_end, NULL);
+}
+
+static void
 _ds_show(E_Desk *desk, int dx, int dy)
 {
    E_Client *ec;
@@ -334,18 +345,29 @@ _ds_show(E_Desk *desk, int dx, int dy)
         break;
       case DS_BLINK:
       {
-         Evas_Object *clip;
+         Evas_Object *clip, *bg;
 
+         dm_show = dm_add(desk);
+         evas_object_geometry_set(dm_show, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
+         evas_object_hide(dm_show);
+
+         bg = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         e_comp_object_util_del_list_append(dm_show, bg);
+         evas_object_color_set(bg, 0, 0, 0, 255);
+         evas_object_layer_set(bg, E_LAYER_MENU + 99);
+         evas_object_geometry_set(bg, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
+         evas_object_show(bg);
          clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         e_comp_object_util_del_list_append(dm_show, clip);
          /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_clip_set(dm_hide, clip);
-         e_comp_object_util_del_list_append(dm_hide, clip);
+         evas_object_clip_set(dm_show, clip);
          evas_object_show(clip);
          /* resize clip to 1px high while moving towards center */
-         efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
+         efx_resize(clip, EFX_EFFECT_SPEED_ACCELERATE,
            EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
-           desk->zone->w, 1, 0.45, _ds_end, NULL);
+           desk->zone->w, 1, 0.45, _ds_blink2, NULL);
       }
         break;
       case DS_VIEWPORT:
