@@ -107,7 +107,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
    else
      use_type = rand() % DS_LAST;
    /* pick a random flip */
-   switch (DS_BLINK)
+   switch (use_type)
      {
       int x, y, hx, hy, w, h;
       Evas_Object *o;
