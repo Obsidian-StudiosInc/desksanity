@@ -107,7 +107,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
    else
      use_type = rand() % DS_LAST;
    /* pick a random flip */
-   switch (use_type)
+   switch (DS_BLINK)
      {
       int x, y, hx, hy, w, h;
       Evas_Object *o;
@@ -347,6 +347,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
            EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
            desk->zone->w, 1, 0.45, _ds_end, NULL);
       }
+        break;
       case DS_VIEWPORT:
       {
          Evas_Object *clip;
