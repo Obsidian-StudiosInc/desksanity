@@ -97,9 +97,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
         evas_object_show(ec->frame);
      }
    desk_show = desk;
-   /* create mirror for current desk */
-   dm_show = dm_add(desk);
-   evas_object_name_set(dm_show, "dm_show");
+
    e_comp_shape_queue_block(e_comp_get(desk), 1);
    /* guarantee that the user gets to see each flip
     * at least once
@@ -145,30 +143,30 @@ _ds_show(E_Desk *desk, int dx, int dy)
              hy = desk->zone->y - desk->zone->h;
              break;
           }
+        dm_show = dm_add(desk);
         evas_object_move(dm_show, x, y);
         efx_move(dm_hide, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(hx, hy), 0.2, NULL, NULL);
         efx_move(dm_show, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(desk->zone->x, desk->zone->y), 0.2, _ds_end, NULL);
         break;
       case DS_FADE_OUT:
-        E_FREE_FUNC(dm_show, evas_object_del);
         efx_fade(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.25, _ds_end, NULL);
         break;
       case DS_FADE_IN:
         E_FREE_FUNC(dm_hide, evas_object_del);
+        dm_show = dm_add(desk);
         efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
         efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.25, _ds_end, NULL);
         break;
       case DS_BATMAN:
-        E_FREE_FUNC(dm_show, evas_object_del);
         evas_object_raise(dm_hide);
         efx_spin_start(dm_hide, 1080.0, NULL);
         efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.00001, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_IN:
+        dm_show = dm_add(desk);
         efx_zoom(dm_show, EFX_EFFECT_SPEED_LINEAR, 0.000001, 1.0, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_OUT:
-        E_FREE_FUNC(dm_show, evas_object_del);
         evas_object_raise(dm_hide);
         efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.0000001, NULL, 0.4, _ds_end, NULL);
         break;
@@ -185,6 +183,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
           y = desk->zone->y + desk->zone->h;
         else if (!dy)
           h = desk->zone->h;
+        dm_show = dm_add(desk);
         o = evas_object_rectangle_add(e_comp_get(desk)->evas);
         evas_object_geometry_set(o, x, y, w, h);
         evas_object_clip_set(dm_show, o);
@@ -193,12 +192,12 @@ _ds_show(E_Desk *desk, int dx, int dy)
         efx_resize(o, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(hx, hy), desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
         break;
       case DS_ROTATE_OUT:
-        E_FREE_FUNC(dm_show, evas_object_del);
         efx_move_circle(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
           720, 0.4, NULL, NULL);
         efx_resize(dm_hide, EFX_EFFECT_SPEED_LINEAR, NULL, 1, 1, 0.4, _ds_end, NULL);
         break;
       case DS_ROTATE_IN:
+        dm_show = dm_add(desk);
         evas_object_resize(dm_show, 1, 1);
         efx_move_circle(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
           720, 0.4, NULL, NULL);
@@ -210,7 +209,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
          Evas_Point exy;
          unsigned int i, num;
 
-         E_FREE_FUNC(dm_show, evas_object_del);
          num = (rand() % 4) + 2;
 
          dmh = dm_hide;
@@ -277,7 +275,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
                               {desk->zone->x + (desk->zone->w * 2), desk->zone->y + (desk->zone->h * 2)}
                              };
 
-         E_FREE_FUNC(dm_show, evas_object_del);
          dmh[0] = dm_hide;
          for (i = 0; i < 4; i++)
            {
@@ -312,7 +309,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
                               {desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)}
                              };
 
-         E_FREE_FUNC(dm_show, evas_object_del);
          dmh[0] = dm_hide;
          for (i = 0; i < 4; i++)
            {
@@ -340,7 +336,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
       {
          Evas_Object *clip;
 
-         E_FREE_FUNC(dm_show, evas_object_del);
          clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
          /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
@@ -356,7 +351,6 @@ _ds_show(E_Desk *desk, int dx, int dy)
       {
          Evas_Object *clip;
 
-         E_FREE_FUNC(dm_show, evas_object_del);
          clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
          /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
@@ -371,6 +365,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
         break;
       default: break;
      }
+   if (dm_show) evas_object_name_set(dm_show, "dm_show");
 }
 
 static void
