@@ -61,7 +61,7 @@ move_x_update(E_Client *ec)
         evas_object_clip_set(mr_line_x, zone->bg_clip_object);
         efx_reclip(mr_line_x);
      }
-   evas_object_line_xy_set(mr_line_x, ec->x, zone->y, ec->x, ec->y);
+   evas_object_geometry_set(mr_line_x, ec->x, zone->y, 1, zone->h);
 
    if (zone->x == 0)
      snprintf(buf, sizeof(buf), "%d", ec->x);
@@ -87,7 +87,7 @@ move_y_update(E_Client *ec)
         evas_object_clip_set(mr_line_y, zone->bg_clip_object);
         efx_reclip(mr_line_y);
      }
-   evas_object_line_xy_set(mr_line_y, zone->x, ec->y, ec->x, ec->y);
+   evas_object_geometry_set(mr_line_y, zone->x, ec->y, zone->w, 1);
 
    if (zone->y == 0)
      snprintf(buf, sizeof(buf), "%d", ec->y);
@@ -167,11 +167,11 @@ resize_text_update(E_Client *ec)
         zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
-          x = zone1->x + zone1->w;
+          x = zone1->w;
         else
-          x = zone2->x + zone2->w;
+          x = zone2->w;
         /* top */
-        evas_object_line_xy_set(resize_rect[0], zone1->x, ec->y, x, ec->y);
+        evas_object_geometry_set(resize_rect[0], zone1->x, ec->y, x, 1);
      }
 
    if (resize_rect[1])
@@ -181,11 +181,11 @@ resize_text_update(E_Client *ec)
         zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
-          y = zone1->y + zone1->h;
+          y = zone1->h;
         else
-          y = zone2->y + zone2->h;
+          y = zone2->h;
         /* right */
-        evas_object_line_xy_set(resize_rect[1], ec->x + ec->w, zone1->y, ec->x + ec->w, y);
+        evas_object_geometry_set(resize_rect[1], ec->x + ec->w, zone1->y, 1, y);
      }
 
    if (resize_rect[2])
@@ -195,11 +195,11 @@ resize_text_update(E_Client *ec)
         zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
-          x = zone1->x + zone1->w;
+          x = zone1->w;
         else
-          x = zone2->x + zone2->w;
+          x = zone2->w;
         /* bottom */
-        evas_object_line_xy_set(resize_rect[2], zone1->x, ec->y + ec->h, x, ec->y + ec->h);
+        evas_object_geometry_set(resize_rect[2], zone1->x, ec->y + ec->h, x, 1);
      }
 
    if (resize_rect[3])
@@ -209,11 +209,11 @@ resize_text_update(E_Client *ec)
         zone2 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
-          y = zone1->y + zone1->h;
+          y = zone1->h;
         else
-          y = zone2->y + zone2->h;
+          y = zone2->h;
         /* left */
-        evas_object_line_xy_set(resize_rect[3], ec->x, zone1->y, ec->x, y);
+        evas_object_geometry_set(resize_rect[3], ec->x, zone1->y, 1, y);
      }
 }
 
@@ -234,7 +234,7 @@ line_add(Evas *e)
 {
    Evas_Object *o;
 
-   o = evas_object_line_add(e);
+   o = evas_object_rectangle_add(e);
    evas_object_layer_set(o, E_LAYER_MENU + 2);
    evas_object_color_set(o, 51, 153, 255, 255);
    evas_object_show(o);
