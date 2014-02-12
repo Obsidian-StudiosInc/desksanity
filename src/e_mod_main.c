@@ -40,6 +40,7 @@ e_modapi_init(E_Module *m)
    bind_textdomain_codeset(PACKAGE, "UTF-8");
 
    snprintf(buf, sizeof(buf), "%s/e-module-desksanity.edj", m->dir);
+   elm_theme_overlay_add(NULL, buf);
 //
    //e_configure_registry_category_add("appearance", 80, D_("Look"),
                                      //NULL, "preferences-look");
@@ -55,6 +56,7 @@ e_modapi_init(E_Module *m)
    ds_init();
    e_moveresize_replace(EINA_TRUE);
    mr_init();
+   maximize_init();
 
    return m;
 }
@@ -67,6 +69,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    e_configure_registry_category_del("extensions");
 
    E_FREE_FUNC(mod->cfd, e_object_del);
+   maximize_shutdown();
    mr_shutdown();
    ds_shutdown();
    //e_config_domain_save("module.desksanity", conf_edd, ds_config);

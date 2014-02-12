@@ -31,4 +31,82 @@ collections {
          }
       }
    }
+   #define COMP_EFFECT_DURATION 0.2
+
+   group { name: "e/comp/effects/desksanity/maximize";
+      script {
+         public message(Msg_Type:type, id, ...) {
+            if ((type == MSG_INT_SET) && (id == 0)) {
+               /* set state */
+               new st;
+
+               st = getarg(2);
+               if (st == 1)
+                 set_state(PART:"mover", "custom", 0.0);
+               else
+                 set_state(PART:"mover", "default", 0.0);
+            } else if ((type == MSG_INT_SET) && (id == 1)) {
+               /* client geom[4] */
+               new x, y, xx, yy;
+
+               x = getarg(2);
+               y = getarg(3);
+               xx = getarg(4);
+               yy = getarg(5);
+
+               custom_state(PART:"mover", "default", 0.0);
+               set_state_val(PART:"mover", STATE_REL1_OFFSET, x, y);
+               set_state_val(PART:"mover", STATE_REL2_OFFSET, xx, yy);
+            }
+         }
+      }
+      parts {
+         part { name: "mover"; type: SPACER;
+           description { state: "default" 0.0;
+           }
+         }
+         part { name: "e.swallow.content"; type: SWALLOW;
+           description { state: "default" 0.0;
+              rel1.to: "mover";
+              rel2.to: "mover";
+           }
+         }
+      }
+      programs {
+         program {
+            name: "show";
+            signal: "e,action,go";
+            source: "e";
+            filter: "mover" "default";
+            action: STATE_SET "custom" 0.0;
+            transition: SINUSOIDAL COMP_EFFECT_DURATION CURRENT;
+            target: "mover";
+            after: "done";
+         }
+         program {
+            name: "hide";
+            signal: "e,action,go";
+            source: "e";
+            filter: "mover" "custom";
+            action: STATE_SET "default" 0.0;
+            transition: SINUSOIDAL COMP_EFFECT_DURATION CURRENT;
+            target: "mover";
+            after: "done";
+         }
+         program {
+            name: "stop";
+            signal: "e,action,stop";
+            source: "e";
+            action: ACTION_STOP;
+            target: "show";
+            target: "hide";
+         }
+         program {
+            name: "done";
+            action: SIGNAL_EMIT "e,action,done" "e";
+         }
+      }
+   }
+
+
 }
