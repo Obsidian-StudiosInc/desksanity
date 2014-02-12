@@ -1,4 +1,15 @@
 collections {
+   group { name: "icon";
+      images.image: "epic-e-256.png" COMP;
+      parts {
+         part { name: "icon"; mouse_events: 0;
+            description { state: "default";
+               aspect_preference: BOTH;
+               image.normal: "epic-e-256.png";
+            }
+         }
+      }
+   }
    group { name: "e/modules/desksanity/moveresize";
       parts {
          part { name: "outline"; type: TEXT; mouse_events: 0;

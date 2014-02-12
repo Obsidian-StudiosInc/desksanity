@@ -17,10 +17,10 @@ files_DATA = module.desktop e-module-desksanity.edj # images/icon.png
 EXTRA_DIST = module.desktop.in \
 	     e_modules-desksanity.spec.in \
 	     e-module-desksanity.edc \
-	     images/trophy.png
+	     epic-e-256.png
 
 e-module-desksanity.edj: e-module-desksanity.edc
-	$(EDJE_CC) $< $@
+	$(EDJE_CC) -id $(top_srcdir) $< $@
 
 clean-local:
 	 rm -rf *.edj module.desktop e_modules-desksanity.spec *~
