@@ -76,7 +76,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_CONFIG_DD_FREE(conf_edd);
    E_FREE(mod);
    E_FREE_LIST(handlers, ecore_event_handler_del);
-   efx_shutdown();
+   //efx_shutdown(); broken...
    return 1;
 }
 
