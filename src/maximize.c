@@ -68,10 +68,11 @@ _ds_maximize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNU
    if (e_comp_config_get()->match.disable_borders) return;
    if (e_comp_config_get()->fast_borders)
      time /= 2;
-   ec->maximize_override = 1;
    ecx = ec->x, ecy = ec->y, ecw = ec->w, ech = ec->h;
    e_comp_object_frame_xy_adjust(ec->frame, ec->saved.x, ec->saved.y, &x, &y);
    evas_object_geometry_get(ec->frame, NULL, NULL, &w, &h);
+   if ((!w) || (!h)) return; //new client, don't break the universe
+   ec->maximize_override = 1;
    evas_object_geometry_set(ec->frame, x, y, w, h);
    efx_resize(ec->frame, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_POINT(ecx, ecy), ecw, ech, time, _ds_maximize_done, ec);
    evas_object_data_set(ec->frame, "__DSMAX", (void*)1);
