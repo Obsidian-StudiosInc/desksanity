@@ -387,6 +387,8 @@ mr_init(void)
 {
    unsigned int x = 0;
 
+   e_moveresize_replace(EINA_TRUE);
+
    ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_BEGIN, move_begin, NULL);
    ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_UPDATE, move_update, NULL);
    ec_hooks[x++] = e_client_hook_add(E_CLIENT_HOOK_MOVE_END, move_end, NULL);
@@ -404,4 +406,5 @@ mr_shutdown(void)
    for (; x < EC_HOOK_COUNT; x++)
      E_FREE_FUNC(ec_hooks[x], e_client_hook_del);
    clear_all();
+   e_moveresize_replace(EINA_FALSE);
 }

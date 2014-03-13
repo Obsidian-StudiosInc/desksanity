@@ -54,7 +54,6 @@ e_modapi_init(E_Module *m)
    mod->edje_file = eina_stringshare_add(buf);
 
    ds_init();
-   e_moveresize_replace(EINA_TRUE);
    mr_init();
    maximize_init();
 
