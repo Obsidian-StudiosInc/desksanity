@@ -262,8 +262,9 @@ pulse(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 }
 
 static void
-move_begin(void *d EINA_UNUSED, E_Client *ec)
+move_start(E_Client *ec)
 {
+   if (ec != e_client_action_get()) return;
    clear_all();
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
@@ -284,6 +285,12 @@ move_begin(void *d EINA_UNUSED, E_Client *ec)
 
    pulse(NULL, NULL, mr_line_x);
    pulse(NULL, NULL, mr_line_y);
+}
+
+static void
+move_begin(void *d EINA_UNUSED, E_Client *ec)
+{
+   ecore_job_add((Ecore_Cb)move_start, ec);
 }
 
 static void
@@ -308,10 +315,11 @@ move_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
 }
 
 static void
-resize_begin(void *d EINA_UNUSED, E_Client *ec)
+resize_start(E_Client *ec)
 {
    unsigned int x;
 
+   if (ec != e_client_action_get()) return;
    clear_all();
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
@@ -359,6 +367,12 @@ resize_begin(void *d EINA_UNUSED, E_Client *ec)
 
    resize_text = text_add(ec->comp->evas);
    resize_text_update(ec);
+}
+
+static void
+resize_begin(void *d EINA_UNUSED, E_Client *ec)
+{
+   ecore_job_add((Ecore_Cb)resize_start, ec);
 }
 
 static void
