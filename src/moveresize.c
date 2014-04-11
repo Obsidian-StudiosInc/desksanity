@@ -264,7 +264,7 @@ pulse(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 static void
 move_start(E_Client *ec)
 {
-   if (ec != e_client_action_get()) return;
+   if (!ec->moving) return;
    clear_all();
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
@@ -319,7 +319,7 @@ resize_start(E_Client *ec)
 {
    unsigned int x;
 
-   if (ec != e_client_action_get()) return;
+   if (!e_client_util_resizing_get(ec)) return;
    clear_all();
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
