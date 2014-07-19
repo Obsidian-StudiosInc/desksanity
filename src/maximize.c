@@ -69,7 +69,7 @@ _ds_maximize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNU
    if (e_comp_config_get()->fast_borders)
      time /= 2;
    ecx = ec->x, ecy = ec->y, ecw = ec->w, ech = ec->h;
-   e_comp_object_frame_xy_adjust(ec->frame, ec->saved.x, ec->saved.y, &x, &y);
+   e_comp_object_frame_xy_adjust(ec->frame, ec->saved.x + ec->zone->x, ec->saved.y + ec->zone->y, &x, &y);
    evas_object_geometry_get(ec->frame, NULL, NULL, &w, &h);
    if ((!w) || (!h)) return; //new client, don't break the universe
    ec->maximize_override = 1;
