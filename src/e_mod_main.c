@@ -73,6 +73,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    ds_shutdown();
    //e_config_domain_save("module.desksanity", conf_edd, ds_config);
    E_CONFIG_DD_FREE(conf_edd);
+   eina_stringshare_del(mod->edje_file);
    E_FREE(mod);
    E_FREE_LIST(handlers, ecore_event_handler_del);
    //efx_shutdown(); broken...
