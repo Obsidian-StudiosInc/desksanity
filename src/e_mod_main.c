@@ -73,12 +73,15 @@ e_modapi_init(E_Module *m)
    if (!ds_config->disable_maximize)
      maximize_init();
 
+   pip_init();
+
    return m;
 }
 
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+   pip_shutdown();
    if (!ds_config->disable_maximize)
      maximize_shutdown();
    if (!ds_config->disable_ruler)

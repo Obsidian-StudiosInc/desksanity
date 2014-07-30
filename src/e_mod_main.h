@@ -83,6 +83,8 @@ typedef struct Config
 extern Mod *mod;
 extern Config *ds_config;
 
+EINTERN void ds_fade_setup(E_Comp *comp);
+
 EINTERN void ds_init(void);
 EINTERN void ds_shutdown(void);
 
@@ -92,6 +94,8 @@ EINTERN void mr_init(void);
 EINTERN void maximize_init(void);
 EINTERN void maximize_shutdown(void);
 
+EINTERN void pip_init(void);
+EINTERN void pip_shutdown(void);
 
 EINTERN void ds_config_init(void);
 EINTERN void ds_config_shutdown(void);
