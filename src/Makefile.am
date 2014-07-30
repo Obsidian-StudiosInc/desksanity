@@ -11,7 +11,7 @@ pkgdir = $(module_dir)/$(PACKAGE)/$(MODULE_ARCH)
 pkg_LTLIBRARIES = module.la
 module_la_SOURCES = e_mod_main.h \
 		    e_mod_main.c \
-                    e_mod_config.c \
+                    ds_config.c \
                     maximize.c \
                     moveresize.c \
                     desksanity.c

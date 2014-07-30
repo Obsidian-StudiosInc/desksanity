@@ -35,6 +35,8 @@ typedef struct Mod
 typedef struct Config
 {
    unsigned int config_version;
+   Eina_Bool disable_ruler;
+   Eina_Bool disable_maximize;
 } Config;
 
 extern Mod *mod;
@@ -49,4 +51,7 @@ EINTERN void mr_init(void);
 EINTERN void maximize_init(void);
 EINTERN void maximize_shutdown(void);
 
+
+EINTERN void ds_config_init(void);
+EINTERN void ds_config_shutdown(void);
 #endif
