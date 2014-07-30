@@ -25,6 +25,25 @@
 #define MOD_CONFIG_FILE_GENERATION 1
 #define MOD_CONFIG_FILE_VERSION ((MOD_CONFIG_FILE_EPOCH * 1000000) + MOD_CONFIG_FILE_GENERATION)
 
+typedef enum
+{
+   DS_PAN, //slide desk in direction of flip
+   DS_FADE_OUT, //current desk fades to transparent
+   DS_FADE_IN, //new desk fades in from transparent
+   DS_BATMAN, //adam west is calling
+   DS_ZOOM_IN, //zoom in to new desk
+   DS_ZOOM_OUT, //zoom out from old desk
+   DS_GROW, //grow the view of the new desk based on flip direction
+   DS_ROTATE_OUT, //spiral current desk out while shrinking
+   DS_ROTATE_IN, //spiral new desk in while growing
+   DS_SLIDE_SPLIT, //split screen in X parts and slide away based on flip direction
+   DS_QUAD_SPLIT, //split screen into quads and move towards corners
+   DS_QUAD_MERGE, //split screen into quads and move towards center
+   DS_BLINK, //like blinking your eye
+   DS_VIEWPORT, //current desk viewport shrinks towards 1x1 at center
+   DS_LAST,
+} DS_Type;
+
 typedef struct Mod
 {
    E_Config_Dialog *cfd;
@@ -32,12 +51,34 @@ typedef struct Mod
    Eina_Stringshare *edje_file;
 } Mod;
 
+typedef struct Config_Types
+{
+   Eina_Bool disable_PAN;
+   Eina_Bool disable_FADE_OUT;
+   Eina_Bool disable_FADE_IN;
+   Eina_Bool disable_BATMAN;
+   Eina_Bool disable_ZOOM_IN;
+   Eina_Bool disable_ZOOM_OUT;
+   Eina_Bool disable_GROW;
+   Eina_Bool disable_ROTATE_OUT;
+   Eina_Bool disable_ROTATE_IN;
+   Eina_Bool disable_SLIDE_SPLIT;
+   Eina_Bool disable_QUAD_SPLIT;
+   Eina_Bool disable_QUAD_MERGE;
+   Eina_Bool disable_BLINK;
+   Eina_Bool disable_VIEWPORT;
+} Config_Types;
+
 typedef struct Config
 {
    unsigned int config_version;
    Eina_Bool disable_ruler;
    Eina_Bool disable_maximize;
+   Eina_Bool disable_transitions;
+   unsigned int disabled_transition_count;
+   Config_Types types;
 } Config;
+
 
 extern Mod *mod;
 extern Config *ds_config;

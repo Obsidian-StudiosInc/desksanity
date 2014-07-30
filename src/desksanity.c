@@ -5,25 +5,6 @@ static Evas_Object *dm_show = NULL;
 static E_Desk *desk_hide = NULL;
 static Evas_Object *dm_hide = NULL;
 
-typedef enum
-{
-   DS_PAN, //slide desk in direction of flip
-   DS_FADE_OUT, //current desk fades to transparent
-   DS_FADE_IN, //new desk fades in from transparent
-   DS_BATMAN, //adam west is calling
-   DS_ZOOM_IN, //zoom in to new desk
-   DS_ZOOM_OUT, //zoom out from old desk
-   DS_GROW, //grow the view of the new desk based on flip direction
-   DS_ROTATE_OUT, //spiral current desk out while shrinking
-   DS_ROTATE_IN, //spiral new desk in while growing
-   DS_SLIDE_SPLIT, //split screen in X parts and slide away based on flip direction
-   DS_QUAD_SPLIT, //split screen into quads and move towards corners
-   DS_QUAD_MERGE, //split screen into quads and move towards center
-   DS_BLINK, //like blinking your eye
-   DS_VIEWPORT, //current desk viewport shrinks towards 1x1 at center
-   DS_LAST,
-} DS_Type;
-
 static DS_Type cur_type = DS_PAN;
 
 static void
@@ -82,6 +63,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
 {
    E_Client *ec;
    DS_Type use_type;
+   DS_Type *disabled_types = (DS_Type*)&ds_config->types;
 
    /* free existing mirror */
    E_FREE_FUNC(dm_show, evas_object_del);
@@ -107,6 +89,11 @@ _ds_show(E_Desk *desk, int dx, int dy)
         ec->hidden = 0;
         evas_object_show(ec->frame);
      }
+   if (ds_config->disabled_transition_count == DS_LAST)
+     {
+        e_desk_flip_end(desk);
+        return;
+     }
    desk_show = desk;
 
    e_comp_shape_queue_block(e_comp_get(desk), 1);
@@ -117,6 +104,16 @@ _ds_show(E_Desk *desk, int dx, int dy)
      use_type = cur_type++;
    else
      use_type = rand() % DS_LAST;
+   while (disabled_types[use_type])
+     {
+        use_type++;
+        if (use_type == DS_LAST)
+          {
+             cur_type = DS_LAST;
+             use_type = DS_PAN;
+          }
+     }
+
    /* pick a random flip */
    switch (use_type)
      {
@@ -408,6 +405,7 @@ _ds_hide(E_Desk *desk)
         ec->hidden = 1;
         evas_object_hide(ec->frame);
      }
+   if (ds_config->disabled_transition_count == DS_LAST) return;
    desk_hide = desk;
    /* create mirror for previous desk */
    dm_hide = dm_add(desk);

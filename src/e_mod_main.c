@@ -17,6 +17,23 @@ _e_mod_ds_config_load(void)
    E_CONFIG_VAL(D, T, config_version, UINT);
    E_CONFIG_VAL(D, T, disable_ruler, UCHAR);
    E_CONFIG_VAL(D, T, disable_maximize, UCHAR);
+   E_CONFIG_VAL(D, T, disable_transitions, UCHAR);
+   E_CONFIG_VAL(D, T, disabled_transition_count, UINT);
+
+   E_CONFIG_VAL(D, T, types.disable_PAN, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_FADE_OUT, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_FADE_IN, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_BATMAN, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_ZOOM_IN, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_ZOOM_OUT, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_GROW, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_ROTATE_OUT, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_ROTATE_IN, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_SLIDE_SPLIT, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_QUAD_SPLIT, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_QUAD_MERGE, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_BLINK, UCHAR);
+   E_CONFIG_VAL(D, T, types.disable_VIEWPORT, UCHAR);
 
    ds_config = e_config_domain_load("module.desksanity", conf_edd);
    if (ds_config)
@@ -49,7 +66,8 @@ e_modapi_init(E_Module *m)
    mod->edje_file = eina_stringshare_add(buf);
 
    ds_config_init();
-   ds_init();
+   if (!ds_config->disable_transitions)
+     ds_init();
    if (!ds_config->disable_ruler)
      mr_init();
    if (!ds_config->disable_maximize)
@@ -65,7 +83,8 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
      maximize_shutdown();
    if (!ds_config->disable_ruler)
      mr_shutdown();
-   ds_shutdown();
+   if (!ds_config->disable_transitions)
+     ds_shutdown();
    ds_config_shutdown();
    e_config_domain_save("module.desksanity", conf_edd, ds_config);
    E_FREE(ds_config);
