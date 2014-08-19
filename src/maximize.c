@@ -17,6 +17,7 @@ _ds_unmaximize_post(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    evas_object_geometry_get(ec->frame, &x, &y, NULL, NULL);
 
    rect = evas_object_data_del(obj, "__DSUMAX");
+   if (!rect) return;
    evas_object_geometry_set(obj, rect->x, rect->y, rect->w, rect->h);
    free(rect);
    efx_resize(ec->frame, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_POINT(x, y), w, h, time, NULL, NULL);
@@ -79,6 +80,17 @@ _ds_maximize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNU
 }
 
 static void
+_ds_fullscreen(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   E_Client *ec = data;
+
+   evas_object_data_del(ec->frame, "__DSMAX");
+   free(evas_object_data_del(ec->frame, "__DSUMAX"));
+   ec->maximize_override = 0;
+   efx_resize_stop(ec->frame);
+}
+
+static void
 _ds_maximize_check(E_Client *ec)
 {
    if (e_client_util_ignored_get(ec)) return;
@@ -86,6 +98,7 @@ _ds_maximize_check(E_Client *ec)
    evas_object_smart_callback_add(ec->frame, "unmaximize_pre", _ds_unmaximize_pre, ec);
    evas_object_smart_callback_add(ec->frame, "unmaximize", _ds_unmaximize, ec);
    evas_object_smart_callback_add(ec->frame, "unmaximize_done", _ds_unmaximize_post, ec);
+   evas_object_smart_callback_add(ec->frame, "fullscreen", _ds_fullscreen, ec);
 }
 
 static Eina_Bool
@@ -117,6 +130,7 @@ maximize_shutdown(void)
         evas_object_smart_callback_del(ec->frame, "unmaximize_pre", _ds_unmaximize_pre);
         evas_object_smart_callback_del(ec->frame, "unmaximize", _ds_unmaximize);
         evas_object_smart_callback_del(ec->frame, "unmaximize_done", _ds_unmaximize_post);
+        evas_object_smart_callback_del(ec->frame, "fullscreen", _ds_fullscreen);
      }
    E_FREE_FUNC(eh, ecore_event_handler_del);
 }
