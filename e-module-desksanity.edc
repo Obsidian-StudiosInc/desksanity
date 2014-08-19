@@ -25,6 +25,7 @@ collections {
                text { font: "Sans"; size: 16;
                   text_source: "e.text";
                   min: 1 1;
+                  ellipsis: -1;
                }
             }
          }
@@ -37,6 +38,7 @@ collections {
                color3: 51 153 255 18;
                text { font: "Sans"; size: 16;
                   min: 1 1;
+                  ellipsis: -1;
                }
             }
          }
