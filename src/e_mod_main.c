@@ -6,6 +6,16 @@ static E_Config_DD *conf_edd = NULL;
 EINTERN Mod *mod = NULL;
 EINTERN Config *ds_config = NULL;
 
+static Evas_Object *fade_obj = NULL;
+
+static void
+_ds_fade_end(Ecore_Cb cb, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
+{
+   E_FREE_FUNC(fade_obj, evas_object_del);
+   if (cb)
+     cb(NULL);
+}
+
 static void
 _e_mod_ds_config_load(void)
 {
@@ -105,3 +115,21 @@ e_modapi_save(E_Module *m EINA_UNUSED)
    return 1;
 }
 
+EINTERN void
+ds_fade_setup(E_Comp *comp)
+{
+   if (fade_obj) return;
+   fade_obj = evas_object_rectangle_add(comp->evas);
+   evas_object_name_set(fade_obj, "fade_obj");
+   evas_object_geometry_set(fade_obj, 0, 0, comp->man->w, comp->man->h);
+   evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
+   evas_object_show(fade_obj);
+   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
+   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
+}
+
+EINTERN void
+ds_fade_end(Ecore_Cb end_cb)
+{
+   efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, (Efx_End_Cb)_ds_fade_end, end_cb);
+}

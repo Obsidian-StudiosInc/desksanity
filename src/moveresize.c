@@ -11,7 +11,6 @@ static Evas_Object *resize_text = NULL;
 static Evas_Object *resize_rect[4] = {NULL};
 
 
-static Evas_Object *fade_obj = NULL;
 static E_Client *client = NULL;
 
 static E_Client_Hook *ec_hooks[EC_HOOK_COUNT] = {NULL};
@@ -19,7 +18,6 @@ static E_Client_Hook *ec_hooks[EC_HOOK_COUNT] = {NULL};
 static void
 clear_all(void)
 {
-   E_FREE_FUNC(fade_obj, evas_object_del);
    E_FREE_FUNC(mr_line_x, evas_object_del);
    E_FREE_FUNC(mr_line_y, evas_object_del);
    E_FREE_FUNC(move_text_x, evas_object_del);
@@ -40,7 +38,7 @@ clear_all(void)
 }
 
 static void
-fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
+_fade_end(void *d EINA_UNUSED)
 {
    e_comp_shape_queue_block(client->comp, 0);
    clear_all();
@@ -242,18 +240,6 @@ line_add(Evas *e)
 }
 
 static void
-fade_setup(E_Client *ec)
-{
-   fade_obj = evas_object_rectangle_add(ec->comp->evas);
-   evas_object_name_set(fade_obj, "fade_obj");
-   evas_object_geometry_set(fade_obj, 0, 0, ec->comp->man->w, ec->comp->man->h);
-   evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
-   evas_object_show(fade_obj);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
-}
-
-static void
 pulse(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 {
    efx_queue_append(obj, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_QUEUED_EFFECT(EFX_EFFECT_FADE(255, 255, 255, 255)), 0.6, NULL, NULL);
@@ -269,7 +255,7 @@ move_start(E_Client *ec)
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
 
-   fade_setup(ec);
+   ds_fade_setup(ec->comp);
 
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
@@ -311,7 +297,7 @@ move_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
    efx_fade(mr_line_y, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    efx_fade(move_text_x, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    efx_fade(move_text_y, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, fade_end, NULL);
+   ds_fade_end(_fade_end);
 }
 
 static void
@@ -324,7 +310,7 @@ resize_start(E_Client *ec)
    client = ec;
    e_comp_shape_queue_block(ec->comp, 1);
 
-   fade_setup(ec);
+   ds_fade_setup(ec->comp);
 
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
@@ -393,7 +379,7 @@ resize_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
         efx_fade(resize_rect[x], EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
         efx_queue_clear(resize_rect[x]);
      }
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, fade_end, NULL);
+   ds_fade_end(_fade_end);
 }
 
 EINTERN void

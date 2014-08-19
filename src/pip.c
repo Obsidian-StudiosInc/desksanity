@@ -9,8 +9,6 @@ static Ecore_Event_Handler *action_handler = NULL;
 
 static Eina_Bool editing = EINA_FALSE;
 
-static Evas_Object *fade_obj = NULL;
-
 typedef struct Pip
 {
    Evas_Object *pip;
@@ -20,25 +18,6 @@ typedef struct Pip
    Eina_Bool move : 1;
    Eina_Bool resize : 1;
 } Pip;
-
-
-static void
-fade_setup(E_Comp *comp)
-{
-   fade_obj = evas_object_rectangle_add(comp->evas);
-   evas_object_name_set(fade_obj, "fade_obj");
-   evas_object_geometry_set(fade_obj, 0, 0, comp->man->w, comp->man->h);
-   evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
-   evas_object_show(fade_obj);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
-}
-
-static void
-fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
-{
-   E_FREE_FUNC(obj, evas_object_del);
-}
 
 static void
 pips_edit(void)
@@ -50,7 +29,7 @@ pips_edit(void)
    comp = e_comp_get(NULL);
    if (comp->nocomp) return;
    editing = EINA_TRUE;
-   fade_setup(comp);
+   ds_fade_setup(comp);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -68,7 +47,7 @@ pips_noedit(void)
    Eina_Iterator *it;
 
    editing = EINA_FALSE;
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, fade_end, NULL);
+   ds_fade_end(NULL);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -347,7 +326,7 @@ pip_shutdown(void)
    E_FREE_FUNC(pips, eina_hash_free);
    E_FREE_FUNC(handlers[0], ecore_event_handler_del);
    E_FREE_FUNC(handlers[1], ecore_event_handler_del);
-   E_FREE_FUNC(fade_obj, evas_object_del);
+   ds_fade_end(NULL);
    e_action_predef_name_del(D_("Compositor"), D_("Manage Minis"));
    e_action_del("pips");
    act = NULL;
