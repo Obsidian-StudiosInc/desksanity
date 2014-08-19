@@ -84,6 +84,7 @@ e_modapi_init(E_Module *m)
      maximize_init();
 
    pip_init();
+   zoom_init();
 
    return m;
 }
@@ -91,6 +92,7 @@ e_modapi_init(E_Module *m)
 EAPI int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+   zoom_shutdown();
    pip_shutdown();
    if (!ds_config->disable_maximize)
      maximize_shutdown();

@@ -100,4 +100,7 @@ EINTERN void pip_shutdown(void);
 
 EINTERN void ds_config_init(void);
 EINTERN void ds_config_shutdown(void);
+
+EINTERN void zoom_init(void);
+EINTERN void zoom_shutdown(void);
 #endif

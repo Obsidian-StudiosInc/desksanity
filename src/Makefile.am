@@ -15,6 +15,7 @@ module_la_SOURCES = e_mod_main.h \
                     maximize.c \
                     moveresize.c \
                     pip.c \
+                    zoom.c \
                     desksanity.c
 
 module_la_LIBADD = @E_LIBS@
