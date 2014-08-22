@@ -103,4 +103,7 @@ EINTERN void ds_config_shutdown(void);
 
 EINTERN void zoom_init(void);
 EINTERN void zoom_shutdown(void);
+
+EINTERN void mag_init(void);
+EINTERN void mag_shutdown(void);
 #endif
