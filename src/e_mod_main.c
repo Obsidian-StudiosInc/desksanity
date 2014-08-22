@@ -137,6 +137,7 @@ ds_fade_setup(E_Comp *comp, Evas_Object_Event_Cb click_cb)
 EINTERN void
 ds_fade_end(Ecore_Cb end_cb, Evas_Object_Event_Cb click_cb)
 {
+   evas_object_pass_events_set(fade_obj, 1);
    efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, (Efx_End_Cb)_ds_fade_end, end_cb);
    if (click_cb)
      evas_object_event_callback_del(fade_obj, EVAS_CALLBACK_MOUSE_DOWN, click_cb);
