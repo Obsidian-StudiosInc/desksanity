@@ -3,7 +3,7 @@
 static E_Client_Menu_Hook *hook = NULL;
 static Eina_Hash *pips = NULL;
 static E_Action *act = NULL;
-static Ecore_Event_Handler *handlers[2];
+static Eina_List *handlers = NULL;
 
 static Ecore_Event_Handler *action_handler = NULL;
 
@@ -12,42 +12,23 @@ static Eina_Bool editing = EINA_FALSE;
 typedef struct Pip
 {
    Evas_Object *pip;
+   Evas_Object *clip;
    Evas_Point down;
    unsigned char opacity;
    E_Pointer_Mode resize_mode;
    Eina_Bool move : 1;
    Eina_Bool resize : 1;
+   Eina_Bool crop : 1;
 } Pip;
 
 static void
-pips_edit(void)
-{
-   Pip *pip;
-   Eina_Iterator *it;
-   E_Comp *comp;
-
-   comp = e_comp_get(NULL);
-   if (comp->nocomp) return;
-   editing = EINA_TRUE;
-   ds_fade_setup(comp);
-   it = eina_hash_iterator_data_new(pips);
-   EINA_ITERATOR_FOREACH(it, pip)
-     {
-        evas_object_layer_set(pip->pip, E_LAYER_MENU + 1);
-        evas_object_pass_events_set(pip->pip, 0);
-     }
-   eina_iterator_free(it);
-   e_comp_shape_queue(comp);
-}
-
-static void
-pips_noedit(void)
+pips_noedit()
 {
    Pip *pip;
    Eina_Iterator *it;
 
    editing = EINA_FALSE;
-   ds_fade_end(NULL);
+   ds_fade_end(NULL, pips_noedit);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -60,9 +41,31 @@ pips_noedit(void)
 }
 
 static void
+pips_edit(void)
+{
+   Pip *pip;
+   Eina_Iterator *it;
+   E_Comp *comp;
+
+   comp = e_comp_get(NULL);
+   if (comp->nocomp) return;
+   editing = EINA_TRUE;
+   ds_fade_setup(comp, pips_noedit);
+   it = eina_hash_iterator_data_new(pips);
+   EINA_ITERATOR_FOREACH(it, pip)
+     {
+        evas_object_layer_set(pip->pip, E_LAYER_MENU + 1);
+        evas_object_pass_events_set(pip->pip, 0);
+     }
+   eina_iterator_free(it);
+   e_comp_shape_queue(comp);
+}
+
+static void
 pip_free(Pip *pip)
 {
    evas_object_del(pip->pip);
+   evas_object_del(pip->clip);
    free(pip);
 }
 
@@ -96,6 +99,34 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
              w = MAX((x + w) - (ev->root.x - pip->down.x), 5);
              x = ev->root.x - pip->down.x;
           }
+        {
+           E_Client *ec;
+
+           ec = evas_object_data_get(pip->pip, "E_Client");
+           switch (pip->resize_mode)
+             {
+              case E_POINTER_RESIZE_TL:
+              case E_POINTER_RESIZE_TR:
+              case E_POINTER_RESIZE_BR:
+              case E_POINTER_RESIZE_BL:
+                if (abs(ev->root.x - pip->down.x) > abs(ev->root.y - pip->down.y))
+                  h = (ec->h * w) / ec->w;
+                else
+                  w = (ec->w * h) / ec->h;
+                break;
+
+              case E_POINTER_RESIZE_T:
+              case E_POINTER_RESIZE_B:
+                w = (ec->w * h) / ec->h;
+                break;
+
+              case E_POINTER_RESIZE_R:
+              case E_POINTER_RESIZE_L:
+                h = (ec->h * w) / ec->w;
+                break;
+              default: break;
+             }
+        }
         evas_object_geometry_set(pip->pip, x, y, w, h);
      }
    else if (pip->move)
@@ -104,6 +135,20 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
         evas_object_move(pip->pip,
           E_CLAMP(ev->root.x - pip->down.x, 0, comp->man->w - (w / 2)),
           E_CLAMP(ev->root.y - pip->down.y, 0, comp->man->h - (h / 2)));
+     }
+   else if (pip->crop)
+     {
+        int cx, cy;
+
+        if (x + pip->down.x < ev->root.x)
+          cx = x + pip->down.x;
+        else
+          cx = ev->root.x;
+        if (y + pip->down.y < ev->root.y)
+          cy = y + pip->down.y;
+        else
+          cy = ev->root.y;
+        evas_object_geometry_set(pip->clip, cx, cy, abs(cx - ev->root.x), abs(cy - ev->root.y));
      }
    return ECORE_CALLBACK_RENEW;
 }
@@ -126,14 +171,19 @@ _pip_mouse_up(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, voi
 {
    Pip *pip = data;
 
+   if (pip->crop)
+     {
+        evas_object_color_set(pip->clip, 255, 255, 255, 255);
+        evas_object_clip_set(pip->pip, pip->clip);
+     }
    pip->down.x = pip->down.y = 0;
-   pip->move = pip->resize = 0;
+   pip->move = pip->resize = pip->crop = 0;
    pip->resize_mode = E_POINTER_RESIZE_NONE;
    E_FREE_FUNC(action_handler, ecore_event_handler_del);
 }
 
 static void
-_pip_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info)
+_pip_mouse_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
 {
    Evas_Event_Mouse_Down *ev = event_info;
    Pip *pip = data;
@@ -147,8 +197,13 @@ _pip_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_i
    evas_object_geometry_get(obj, &x, &y, &w, &h);
    pip->down.x = ev->output.x - x;
    pip->down.y = ev->output.y - y;
-   pip->move = ev->button == 1;
-   pip->resize = ev->button == 2;
+   if (evas_key_modifier_is_set(ev->modifiers, "Shift"))
+     pip->crop = ev->button == 1;
+   else if (!evas_key_modifier_is_set(ev->modifiers, "Control"))
+     {
+        pip->move = ev->button == 1;
+        pip->resize = ev->button == 2;
+     }
    if (pip->resize)
      {
         if ((ev->output.x > (x + w / 5)) &&
@@ -196,6 +251,20 @@ _pip_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_i
                }
           }
      }
+   else if (pip->crop)
+     {
+        pip->down.x = E_CLAMP(pip->down.x, 0, w);
+        pip->down.y = E_CLAMP(pip->down.y, 0, h);
+        if (!pip->clip)
+          {
+             pip->clip = evas_object_rectangle_add(e);
+             evas_object_pass_events_set(pip->clip, 1);
+             evas_object_layer_set(pip->clip, evas_object_layer_get(pip->pip) + 1);
+             evas_object_show(pip->clip);
+          }
+        evas_object_clip_unset(pip->pip);
+        evas_object_color_set(pip->clip, 50, 50, 50, 50);
+     }
    action_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_pip_mouse_move, pip);
 }
 
@@ -212,6 +281,18 @@ static void
 _pip_delete(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
 {
    _pip_del(data, NULL, NULL, NULL);
+}
+
+static void
+_pip_manage(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   pips_edit();
+}
+
+static void
+_pip_fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
+{
+   ecore_job_add((Ecore_Cb)efx_fade_reset, obj);
 }
 
 static void
@@ -241,7 +322,7 @@ _pip_create(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, _pip_del, ec);
 
    efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-   efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.2, NULL, NULL);
+   efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.2, _pip_fade_end, NULL);
 
    eina_hash_add(pips, &ec->frame, pip);
 }
@@ -250,6 +331,7 @@ static void
 _pip_hook(void *d EINA_UNUSED, E_Client *ec)
 {
    E_Menu_Item *mi;
+   E_Menu *subm;
    const Eina_List *l;
    Eina_Bool exists;
 
@@ -263,7 +345,8 @@ _pip_hook(void *d EINA_UNUSED, E_Client *ec)
      if (mi->separator) break;
 
    mi = eina_list_data_get(l->prev);
-   mi = e_menu_item_new(mi->submenu);
+   subm = mi->submenu;
+   mi = e_menu_item_new(subm);
    if (exists)
      e_menu_item_label_set(mi, D_("Delete Mini"));
    else
@@ -273,6 +356,12 @@ _pip_hook(void *d EINA_UNUSED, E_Client *ec)
      e_menu_item_callback_set(mi, _pip_delete, ec);
    else
      e_menu_item_callback_set(mi, _pip_create, ec);
+   if (!exists) return;
+
+   mi = e_menu_item_new(subm);
+   e_menu_item_label_set(mi, D_("Manage Minis"));
+   e_menu_item_icon_edje_set(mi, mod->edje_file, "icon");
+   e_menu_item_callback_set(mi, _pip_manage, ec);
 }
 
 static void
@@ -307,8 +396,8 @@ pip_init(void)
 {
    hook = e_int_client_menu_hook_add(_pip_hook, NULL);
    pips = eina_hash_pointer_new((Eina_Free_Cb)pip_free);
-   handlers[0] = ecore_event_handler_add(E_EVENT_COMPOSITOR_DISABLE, pip_comp_disable, NULL);
-   handlers[1] = ecore_event_handler_add(E_EVENT_COMPOSITOR_ENABLE, pip_comp_enable, NULL);
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_COMPOSITOR_DISABLE, pip_comp_disable, NULL);
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_COMPOSITOR_ENABLE, pip_comp_enable, NULL);
 
    act = e_action_add("pip");
    if (act)
@@ -324,9 +413,8 @@ pip_shutdown(void)
 {
    E_FREE_FUNC(hook, e_int_client_menu_hook_del);
    E_FREE_FUNC(pips, eina_hash_free);
-   E_FREE_FUNC(handlers[0], ecore_event_handler_del);
-   E_FREE_FUNC(handlers[1], ecore_event_handler_del);
-   ds_fade_end(NULL);
+   E_FREE_LIST(handlers, ecore_event_handler_del);
+   ds_fade_end(NULL, pips_noedit);
    e_action_predef_name_del(D_("Compositor"), D_("Manage Minis"));
    e_action_del("pips");
    act = NULL;
