@@ -16,6 +16,7 @@ typedef struct Pip
    Evas_Point down;
    unsigned char opacity;
    E_Pointer_Mode resize_mode;
+   double zoom;
    Eina_Bool move : 1;
    Eina_Bool resize : 1;
    Eina_Bool crop : 1;
@@ -156,14 +157,25 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
 static void
 _pip_mouse_wheel(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
-   Ecore_Event_Mouse_Wheel *ev = event_info;
+   Evas_Event_Mouse_Wheel *ev = event_info;
    Pip *pip = data;
 
-   if (ev->z < 0)
-     pip->opacity = E_CLAMP(pip->opacity + 15, 0, 255);
-   else if (ev->z > 0)
-     pip->opacity = E_CLAMP(pip->opacity - 15, 0, 255);
-   efx_fade(pip->pip, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(pip->opacity, pip->opacity, pip->opacity), pip->opacity, 0.2, NULL, NULL);
+   if (ev->direction % 2) return;
+   if (evas_key_modifier_is_set(ev->modifiers, "Control"))
+     {
+        if (ev->z < 0)
+          efx_zoom(pip->pip, EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom -= 0.05, EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
+        else if (ev->z > 0)
+          efx_zoom(pip->pip, EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom += 0.05, EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
+     }
+   else
+     {
+        if (ev->z < 0)
+          pip->opacity = E_CLAMP(pip->opacity + 15, 0, 255);
+        else if (ev->z > 0)
+          pip->opacity = E_CLAMP(pip->opacity - 15, 0, 255);
+        efx_fade(pip->pip, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(pip->opacity, pip->opacity, pip->opacity), pip->opacity, 0.2, NULL, NULL);
+     }
 }
 
 static void
@@ -309,6 +321,7 @@ _pip_create(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
    pip->pip = o;
    pip->resize_mode = E_POINTER_RESIZE_NONE;
    pip->opacity = 255;
+   pip->zoom = 1.0;
 
    evas_object_geometry_set(o, ec->zone->x + 1, ec->zone->y + 1, (ec->w * (ec->zone->h / 4)) / ec->h, ec->zone->h / 4);
    e_comp_object_util_center(o);
