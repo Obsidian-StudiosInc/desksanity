@@ -239,6 +239,16 @@ collections {
                link.base: "mouse,in" "events";
                link.transition: LINEAR 0.2;
             }
+            desc { "hid"; inherit: "default";
+               color: 255 255 255 0;
+               hid;
+               link.base: "e,drag,begin" "e";
+               link.transition: LINEAR 0.2;
+               link.after: "drag_begin";
+               program { "drag_begin";
+                  action: SIGNAL_EMIT "e,drag,begun" "e";
+               }
+            }
          }
          proxy { "clone";
             desc {
@@ -284,6 +294,7 @@ collections {
                after: "go_hid";
             }
             program { name: "go_hid";
+               signal: "e,drag,begin"; source: "e";
                action: STATE_SET "default" 0.0;
                transition: LINEAR 0.5;
                target: "clone";
@@ -331,6 +342,64 @@ collections {
             }
             program { signal: "mouse,out"; source: "events";
                action: SIGNAL_EMIT "e,state,inactive" "e";
+            }
+         }
+      }
+   }
+   group { "e/modules/desksanity/zoom/client/drag";
+      images.image: "win_shadow.png" COMP;
+      script {
+         public message(Msg_Type:type, id, ...) {
+            if (type == MSG_INT_SET) {
+               /* client diff geom[4] */
+               new x, y, w, h;
+
+               x = getarg(2);
+               y = getarg(3);
+               w = getarg(4);
+               h = getarg(5);
+
+               custom_state(PART:"e.swallow.client", "default", 0.0);
+               set_state_val(PART:"e.swallow.client", STATE_REL1_OFFSET, x, y);
+               set_state_val(PART:"e.swallow.client", STATE_REL2_OFFSET, w, h);
+            }
+         }
+      }
+      parts {
+         rect { "clip";
+            desc {}
+            desc { "hid"; hid;
+               color: 255 255 255 0;
+               link.base: "e,drag,release" "e";
+               link.transition: LINEAR 0.1;
+            }
+         }
+         image { "shadow"; clip: "clip";
+            desc {
+               image.normal: "win_shadow.png";
+               image.border: 14 14 14 14;
+               image.middle: 0;
+               rel1.to: "e.swallow.client";
+               rel1.offset: -7  -3;
+               rel2.to: "e.swallow.client";
+               rel2.offset: 6 11;
+               fill.smooth: 0;
+            }
+         }
+         swallow { "e.swallow.client"; }
+         rect { "over"; clip: "clip";
+            desc {
+               rel1.to: "e.swallow.client";
+               rel2.to: "e.swallow.client";
+               color: 255 255 255 90;
+            }
+         }
+         program { signal: "e,drag,release"; source: "e";
+            action: STATE_SET "custom";
+            target: "e.swallow.client";
+            transition: LINEAR 0.1;
+            sequence {
+               action: SIGNAL_EMIT "e,action,done" "e";
             }
          }
       }

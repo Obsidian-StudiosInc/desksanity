@@ -106,7 +106,7 @@ _ds_menu_add(void *data EINA_UNUSED, E_Menu *m)
    if (ds_config->disable_transitions) return;
 
    subm = e_menu_new();
-   e_menu_title_set(subm, D_("Transitions"));
+   e_menu_title_set(subm, D_("Disable Transitions"));
    e_menu_item_submenu_set(mi, subm);
    e_object_unref(E_OBJECT(subm));
 

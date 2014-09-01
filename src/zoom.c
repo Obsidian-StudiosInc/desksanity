@@ -2,10 +2,13 @@
 
 #define MAX_COLS 4
 
+#define DRAG_RESIST 10
+
 typedef Eina_Bool (*Zoom_Filter_Cb)(const E_Client *, E_Zone *);
 
 static Eina_List *zoom_objs = NULL;
 static Eina_List *current = NULL;
+static Eina_List *handlers = NULL;
 static E_Action *act_zoom_desk = NULL;
 static E_Action *act_zoom_desk_all = NULL;
 static E_Action *act_zoom_zone = NULL;
@@ -13,9 +16,11 @@ static E_Action *act_zoom_zone_all = NULL;
 
 static E_Action *cur_act = NULL;
 
-static Eina_List *handlers = NULL;
-
 static int zmw, zmh;
+
+static Evas_Coord dx = -1;
+static Evas_Coord dy = -1;
+static Evas_Object *dm, *dm_drag;
 
 static inline unsigned int
 _cols_calc(unsigned int count)
@@ -26,12 +31,36 @@ _cols_calc(unsigned int count)
    return 4;
 }
 
+static inline void
+_drag_reset(void)
+{
+   dx = dy = -1;
+   dm = NULL;
+   E_FREE_FUNC(dm_drag, evas_object_del);
+}
+
+static void
+_edje_custom_setup(Evas_Object *obj, const E_Client *ec, int x, int y, int w, int h)
+{
+   Edje_Message_Int_Set *msg;
+
+   msg = alloca(sizeof(Edje_Message_Int_Set) + ((4 - 1) * sizeof(int)));
+   msg->count = 4;
+   msg->val[0] = ec->client.x - x;
+   msg->val[1] = ec->client.y - y;
+   msg->val[2] = (ec->client.x + ec->client.w) - (x + w);
+   msg->val[3] = (ec->client.y + ec->client.h) - (y + h);
+   edje_object_message_send(obj, EDJE_MESSAGE_INT_SET, 0, msg);
+   edje_object_message_signal_process(obj);
+}
+
 static void
 _hid(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
 {
    e_comp_shape_queue(e_comp_util_evas_object_comp_get(obj));
    evas_object_hide(obj);
    evas_object_del(obj);
+   _drag_reset();
 }
 
 static void
@@ -53,6 +82,72 @@ static void
 _dismiss()
 {
    _zoom_hide();
+}
+
+static void
+_client_mouse_down(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj, Evas_Event_Mouse_Down *ev)
+{
+   dx = ev->output.x;
+   dy = ev->output.y;
+   dm = edje_object_part_swallow_get(obj, "e.swallow.client");
+}
+
+static void
+_client_mouse_up(E_Client *ec, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, Evas_Event_Mouse_Up *ev)
+{
+   E_Zone *zone;
+   E_Desk *desk;
+   int x, y, w, h;
+
+   if (!dm_drag)
+     {
+        _drag_reset();
+        return;
+     }
+   zone = e_comp_zone_xy_get(e_comp_get(NULL), ev->output.x, ev->output.y);
+   desk = e_desk_current_get(zone);
+   ec->hidden = 0;
+   e_client_desk_set(ec, desk);
+   e_client_activate(ec, 1);
+
+   evas_object_geometry_get(edje_object_part_swallow_get(dm_drag, "e.swallow.client"), &x, &y, &w, &h);
+   _edje_custom_setup(dm_drag, ec, x, y, w, h);
+
+   edje_object_signal_emit(dm_drag, "e,drag,release", "e");
+}
+
+static Eina_Bool
+_client_mouse_move(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
+{
+   int x, y, w, h;
+
+   if (!dm) return ECORE_CALLBACK_RENEW;
+
+   evas_object_geometry_get(dm, &x, &y, &w, &h);
+   if (!dm_drag)
+     {
+        Evas_Object *m;
+
+        /* no adjust, not X coords */
+        if ((abs(ev->root.x - dx) < DRAG_RESIST) && (abs(ev->root.y - dy) < DRAG_RESIST)) return ECORE_CALLBACK_RENEW;
+        dm_drag = edje_object_add(evas_object_evas_get(dm));
+        evas_object_pass_events_set(dm_drag, 1);
+        evas_object_size_hint_min_get(dm, &w, &h);
+        e_theme_edje_object_set(dm_drag, NULL, "e/modules/desksanity/zoom/client/drag");
+        edje_object_signal_callback_add(dm_drag, "e,action,done", "e", _dismiss, NULL);
+        evas_object_layer_set(dm_drag, E_LAYER_POPUP);
+        evas_object_resize(dm_drag, w, h);
+        m = e_comp_object_util_mirror_add(dm);
+        e_comp_object_util_del_list_append(dm_drag, m);
+        evas_object_size_hint_min_set(m, w, h);
+        edje_object_part_swallow(dm_drag, "e.swallow.client", m);
+        evas_object_show(dm_drag);
+        edje_object_signal_emit(evas_object_smart_parent_get(dm), "e,drag,begin", "e");
+     }
+   evas_object_move(dm_drag,
+     e_comp_canvas_x_root_adjust(e_comp_get(NULL), ev->root.x) - (dx - x),
+     e_comp_canvas_y_root_adjust(e_comp_get(NULL), ev->root.y) - (dy - y));
+   return ECORE_CALLBACK_RENEW;
 }
 
 static void
@@ -96,6 +191,12 @@ _zoomobj_pack_client(const E_Client *ec, const E_Zone *zone, Evas_Object *tb, Ev
 }
 
 static void
+_client_drag_begun(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
+{
+   evas_object_hide(obj);
+}
+
+static void
 _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
 {
    E_Client *ec;
@@ -107,10 +208,13 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
    e_comp_object_util_del_list_append(zoom_obj, e);
    e_comp_object_util_del_list_append(zoom_obj, m);
    e_theme_edje_object_set(e, NULL, "e/modules/desksanity/zoom/client");
+   evas_object_event_callback_add(e, EVAS_CALLBACK_MOUSE_DOWN, (Evas_Object_Event_Cb)_client_mouse_down, ec);
+   evas_object_event_callback_add(e, EVAS_CALLBACK_MOUSE_UP, (Evas_Object_Event_Cb)_client_mouse_up, ec);
    if ((!zmw) && (!zmh))
      edje_object_size_min_calc(e, &zmw, &zmh);
    edje_object_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
    edje_object_signal_callback_add(e, "e,state,active", "e", _client_active, ec);
+   edje_object_signal_callback_add(e, "e,drag,begun", "e", _client_drag_begun, ec);
    if (e_client_focused_get() == ec)
      {
         edje_object_signal_emit(e, "e,state,focused", "e");
@@ -135,19 +239,11 @@ _zoomobj_position_client(Evas_Object *m)
    int x, y, w, h;
    E_Client *ec;
    Evas_Object *e;
-   Edje_Message_Int_Set *msg;
 
    e = evas_object_smart_parent_get(m);
    ec = evas_object_data_get(m, "E_Client");
    evas_object_geometry_get(e, &x, &y, &w, &h);
-   msg = alloca(sizeof(Edje_Message_Int_Set) + ((4 - 1) * sizeof(int)));
-   msg->count = 4;
-   msg->val[0] = ec->client.x - x;
-   msg->val[1] = ec->client.y - y;
-   msg->val[2] = (ec->client.x + ec->client.w) - (x + w);
-   msg->val[3] = (ec->client.y + ec->client.h) - (y + h);
-   edje_object_message_send(e, EDJE_MESSAGE_INT_SET, 0, msg);
-   edje_object_message_signal_process(e);
+   _edje_custom_setup(e, ec, x, y, w, h);
    edje_object_signal_emit(e, "e,action,show", "e");
 }
 
@@ -370,6 +466,7 @@ zoom(Eina_List *clients, E_Zone *zone)
         E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_PROPERTY, _zoom_client_property, NULL);
         E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_ADD, _zoom_client_add, NULL);
         E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_REMOVE, _zoom_client_del, NULL);
+        E_LIST_HANDLER_APPEND(handlers, ECORE_EVENT_MOUSE_MOVE, _client_mouse_move, NULL);
      }
 
    zoom_obj = edje_object_add(comp->evas);
