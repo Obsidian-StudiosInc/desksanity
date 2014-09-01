@@ -2,6 +2,8 @@
 
 #define MAX_COLS 4
 
+typedef Eina_Bool (*Zoom_Filter_Cb)(const E_Client *, E_Zone *);
+
 static Eina_List *zoom_objs = NULL;
 static Eina_List *current = NULL;
 static E_Action *act_zoom_desk = NULL;
@@ -421,12 +423,28 @@ zoom(Eina_List *clients, E_Zone *zone)
    zoom_objs = eina_list_append(zoom_objs, zoom_obj);
 }
 
-static void
-_zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
+static Eina_Bool
+_filter_desk(const E_Client *ec, E_Zone *zone)
 {
-   Eina_List *clients = NULL;
-   E_Comp *comp = e_comp_get(NULL);
-   E_Zone *zone;
+   return e_client_util_desk_visible(ec, e_desk_current_get(zone));
+}
+
+static Eina_Bool
+_filter_desk_all(const E_Client *ec, E_Zone *zone)
+{
+   return ec->desk == e_desk_current_get(zone);
+}
+
+static Eina_Bool
+_filter_zone(const E_Client *ec, E_Zone *zone)
+{
+   return ec->zone == zone;
+}
+
+static void
+_zoom_begin(Zoom_Filter_Cb cb, E_Zone *zone)
+{
+   Eina_List *clients = NULL, *l;
    Evas_Object *m;
    E_Client *ec;
 
@@ -437,118 +455,55 @@ _zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
         return;
      }
 
-   cur_act = act_zoom_desk;
-   zone = e_zone_current_get(comp);
-   E_CLIENT_FOREACH(comp, ec)
+   EINA_LIST_FOREACH(e_client_focus_stack_get(), l, ec)
      {
         if (e_client_util_ignored_get(ec)) continue;
-        if (!e_client_util_desk_visible(ec, e_desk_current_get(zone))) continue;
         if (ec->iconic && (!e_config->winlist_list_show_iconified)) continue;
+        if (!cb(ec, zone)) continue;
 
         m = e_comp_object_util_mirror_add(ec->frame);
         if (!m) continue;
         clients = eina_list_append(clients, m);
      }
    zoom(clients, zone);
+}
+
+static void
+_zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
+{
+   cur_act = act_zoom_desk;
+   _zoom_begin(_filter_desk, e_zone_current_get(e_comp_get(NULL)));
 }
 
 static void
 _zoom_desk_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   Eina_List *clients = NULL;
    E_Comp *comp = e_comp_get(NULL);
    E_Zone *zone;
-   Evas_Object *m;
-   E_Client *ec;
    Eina_List *l;
-
-   if (zoom_objs)
-     {
-        _zoom_hide();
-        return;
-     }
 
    cur_act = act_zoom_desk_all;
    EINA_LIST_FOREACH(comp->zones, l, zone)
-     {
-        E_Desk *desk = e_desk_current_get(zone);
-        E_CLIENT_FOREACH(comp, ec)
-          {
-             if (e_client_util_ignored_get(ec)) continue;
-             if (ec->desk != desk) continue; //ignore sticky
-             if (ec->iconic && (!e_config->winlist_list_show_iconified)) continue;
-
-             m = e_comp_object_util_mirror_add(ec->frame);
-             if (!m) continue;
-             clients = eina_list_append(clients, m);
-          }
-        zoom(clients, zone);
-     }
+     _zoom_begin(_filter_desk_all, zone);
 }
 
 static void
 _zoom_zone_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   Eina_List *clients = NULL;
-   E_Comp *comp = e_comp_get(NULL);
-   E_Zone *zone;
-   Evas_Object *m;
-   E_Client *ec;
-
-
-   if (zoom_objs)
-     {
-        _zoom_hide();
-        return;
-     }
-
    cur_act = act_zoom_zone;
-   zone = e_zone_current_get(comp);
-   E_CLIENT_FOREACH(comp, ec)
-     {
-        if (e_client_util_ignored_get(ec)) continue;
-        if (ec->zone != zone) continue;
-        if (ec->iconic && (!e_config->winlist_list_show_iconified)) continue;
-
-        m = e_comp_object_util_mirror_add(ec->frame);
-        if (!m) continue;
-        clients = eina_list_append(clients, m);
-     }
-   zoom(clients, zone);
+   _zoom_begin(_filter_zone, e_zone_current_get(e_comp_get(NULL)));
 }
 
 static void
 _zoom_zone_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   Eina_List *clients = NULL;
    E_Comp *comp = e_comp_get(NULL);
    E_Zone *zone;
-   Evas_Object *m;
-   E_Client *ec;
    Eina_List *l;
-
-
-   if (zoom_objs)
-     {
-        _zoom_hide();
-        return;
-     }
 
    cur_act = act_zoom_zone_all;
    EINA_LIST_FOREACH(comp->zones, l, zone)
-     {
-        E_CLIENT_FOREACH(comp, ec)
-          {
-             if (e_client_util_ignored_get(ec)) continue;
-             if (ec->zone != zone) continue;
-             if (ec->iconic && (!e_config->winlist_list_show_iconified)) continue;
-
-             m = e_comp_object_util_mirror_add(ec->frame);
-             if (!m) continue;
-             clients = eina_list_append(clients, m);
-          }
-        zoom(clients, zone);
-     }
+     _zoom_begin(_filter_zone, zone);
 }
 
 EINTERN void
