@@ -55,7 +55,7 @@ _magnify_update(int x, int y)
 static Eina_Bool
 _magnify_move(void *data EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
 {
-   _magnify_update(ev->root.x, ev->root.y);
+   _magnify_update(e_comp_canvas_x_root_adjust(e_comp_get(NULL), ev->root.x), e_comp_canvas_y_root_adjust(e_comp_get(NULL), ev->root.y));
    return ECORE_CALLBACK_RENEW;
 }
 
