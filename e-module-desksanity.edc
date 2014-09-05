@@ -46,11 +46,114 @@ collections {
    }
    group { name: "e/modules/desksanity/zoom/base"; program_source: "e";
       parts {
+         rect { "drag_clip"; nomouse;
+            desc { hid; }
+            desc { "vis";
+               link.base: "e,state,dragging";
+            }
+         }
+         rect { "zoomt"; clip: "drag_clip"; nomouse;
+            desc {
+               min: 0 4;
+               max: -1 4;
+               rel2.relative: 1 0;
+               color: 51 153 255 0;
+               hid;
+            }
+            desc { "enable"; inherit: "default";
+               color: 51 153 255 200;
+               vis;
+            }
+            desc { "anim"; inherit: "enable";
+               rel1.relative: 0.5 0.5;
+               rel2.relative: 0.5 0.5;
+            }
+         }
+         rect { "zooml"; clip: "drag_clip"; nomouse;
+            desc {
+               min: 4 0;
+               max: 4 -1;
+               rel2.relative: 0 1;
+               color: 51 153 255 0;
+               hid;
+            }
+            desc { "enable"; inherit: "default";
+               color: 51 153 255 200;
+               vis;
+            }
+            desc { "anim"; inherit: "enable";
+               rel1.relative: 0.5 0.5;
+               rel2.relative: 0.5 0.5;
+            }
+         }
+         rect { "zoomr"; clip: "drag_clip"; nomouse;
+            desc {
+               min: 4 0;
+               max: 4 -1;
+               rel1.relative: 1 0;
+               color: 51 153 255 0;
+               hid;
+            }
+            desc { "enable"; inherit: "default";
+               color: 51 153 255 200;
+               vis;
+            }
+            desc { "anim"; inherit: "enable";
+               rel1.relative: 0.5 0.5;
+               rel2.relative: 0.5 0.5;
+            }
+         }
+         rect { "zoomb"; clip: "drag_clip"; nomouse;
+            desc {
+               min: 0 4;
+               max: -1 4;;
+               rel1.relative: 0 1;
+               color: 51 153 255 0;
+               hid;
+            }
+            desc { "enable"; inherit: "default";
+               color: 51 153 255 200;
+               vis;
+            }
+            desc { "anim"; inherit: "enable";
+               rel1.relative: 0.5 0.5;
+               rel2.relative: 0.5 0.5;
+            }
+         }
+         program { signal: "e,state,current";
+            after: "drag_start";
+         }
+         program { "drag_start"; filter: "drag_clip" "vis";
+            signal: "mouse,in"; source: "events";
+            action: STATE_SET "enable";
+            transition: LINEAR 0.1;
+            targets: "zoomt" "zooml" "zoomr" "zoomb";
+            after: "drag_anim";
+         }
+         program { filter: "drag_clip" "vis";
+            signal: "mouse,out"; source: "events";
+            action: STATE_SET "default";
+            transition: ACCEL 0.1;
+            targets: "zoomt" "zooml" "zoomr" "zoomb";
+         }
+         program { "drag_anim";
+            action: STATE_SET "anim";
+            transition: ACCEL 0.8;
+            targets: "zoomt" "zooml" "zoomr" "zoomb";
+            after: "drag_anim2";
+         }
+         program { "drag_anim2";
+            action: STATE_SET "default";
+            targets: "zoomt" "zooml" "zoomr" "zoomb";
+            after: "drag_anim";
+         }
          swallow { "e.swallow.background"; clip: "clip";
          }
-         rect { "fader"; nomouse;
+         rect { "fader";
             desc {
                color: 0 0 0 0;
+               link.base: "e,state,dragging";
+               link.transition: LINEAR 0.3;
                link.base: "e,state,inactive";
                link.transition: LINEAR 0.3;
                link.after: "fade_post";
@@ -65,7 +168,9 @@ collections {
             }
          }
          rect { "clip";
-            desc { color: 255 255 255 0;
+            desc { hid; color: 255 255 255 0;
+               link.base: "e,state,dragging";
+               link.transition: LINEAR 0.3;
                link.base: "e,state,inactive";
                link.transition: LINEAR 0.3;
             }
@@ -77,6 +182,9 @@ collections {
          swallow { "e.swallow.layout"; clip: "clip"; }
          program { signal: "e,state,inactive";
             action: SIGNAL_EMIT "e,state,hiding" "e";
+         }
+         rect { "events"; repeat;
+            desc { color: 0 0 0 0; }
          }
       }
    }
@@ -239,16 +347,6 @@ collections {
                link.base: "mouse,in" "events";
                link.transition: LINEAR 0.2;
             }
-            desc { "hid"; inherit: "default";
-               color: 255 255 255 0;
-               hid;
-               link.base: "e,drag,begin" "e";
-               link.transition: LINEAR 0.2;
-               link.after: "drag_begin";
-               program { "drag_begin";
-                  action: SIGNAL_EMIT "e,drag,begun" "e";
-               }
-            }
          }
          proxy { "clone";
             desc {
@@ -294,7 +392,6 @@ collections {
                after: "go_hid";
             }
             program { name: "go_hid";
-               signal: "e,drag,begin"; source: "e";
                action: STATE_SET "default" 0.0;
                transition: LINEAR 0.5;
                target: "clone";

@@ -60,7 +60,6 @@ _hid(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, cons
    e_comp_shape_queue(e_comp_util_evas_object_comp_get(obj));
    evas_object_hide(obj);
    evas_object_del(obj);
-   _drag_reset();
 }
 
 static void
@@ -68,8 +67,15 @@ _zoom_hide(void)
 {
    Evas_Object *zoom_obj;
 
-   EINA_LIST_FREE(zoom_objs, zoom_obj)
-     edje_object_signal_emit(zoom_obj, "e,state,inactive", "e");
+   if (dm_drag)
+     EINA_LIST_FREE(zoom_objs, zoom_obj)
+       {
+          evas_object_hide(zoom_obj);
+          evas_object_del(zoom_obj);
+       }
+   else
+     EINA_LIST_FREE(zoom_objs, zoom_obj)
+       edje_object_signal_emit(zoom_obj, "e,state,inactive", "e");
    E_FREE_LIST(handlers, ecore_event_handler_del);
    e_comp_ungrab_input(e_comp_get(NULL), 1, 1);
    e_comp_shape_queue(e_comp_get(NULL));
@@ -82,6 +88,7 @@ static void
 _dismiss()
 {
    _zoom_hide();
+   _drag_reset();
 }
 
 static void
@@ -126,7 +133,8 @@ _client_mouse_move(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Mov
    evas_object_geometry_get(dm, &x, &y, &w, &h);
    if (!dm_drag)
      {
-        Evas_Object *m;
+        Evas_Object *m, *zoom_obj;
+        Eina_List *l;
 
         /* no adjust, not X coords */
         if ((abs(ev->root.x - dx) < DRAG_RESIST) && (abs(ev->root.y - dy) < DRAG_RESIST)) return ECORE_CALLBACK_RENEW;
@@ -142,7 +150,13 @@ _client_mouse_move(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Mov
         evas_object_size_hint_min_set(m, w, h);
         edje_object_part_swallow(dm_drag, "e.swallow.client", m);
         evas_object_show(dm_drag);
-        edje_object_signal_emit(evas_object_smart_parent_get(dm), "e,drag,begin", "e");
+
+        EINA_LIST_FOREACH(zoom_objs, l, zoom_obj)
+          {
+             edje_object_signal_emit(zoom_obj, "e,state,dragging", "e");
+             if (e_comp_object_util_zone_get(zoom_obj) == e_zone_current_get(e_comp_util_evas_object_comp_get(zoom_obj)))
+               edje_object_signal_emit(zoom_obj, "e,state,current", "e");
+          }
      }
    evas_object_move(dm_drag,
      e_comp_canvas_x_root_adjust(e_comp_get(NULL), ev->root.x) - (dx - x),
@@ -191,12 +205,6 @@ _zoomobj_pack_client(const E_Client *ec, const E_Zone *zone, Evas_Object *tb, Ev
 }
 
 static void
-_client_drag_begun(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
-{
-   evas_object_hide(obj);
-}
-
-static void
 _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
 {
    E_Client *ec;
@@ -214,7 +222,6 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
      edje_object_size_min_calc(e, &zmw, &zmh);
    edje_object_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
    edje_object_signal_callback_add(e, "e,state,active", "e", _client_active, ec);
-   edje_object_signal_callback_add(e, "e,drag,begun", "e", _client_drag_begun, ec);
    if (e_client_focused_get() == ec)
      {
         edje_object_signal_emit(e, "e,state,focused", "e");
