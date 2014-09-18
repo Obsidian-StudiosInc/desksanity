@@ -2,6 +2,13 @@
 
 static Ecore_Event_Handler *eh = NULL;
 
+static Eina_Bool
+_ds_unmaximize_render(void *d EINA_UNUSED)
+{
+   e_comp_render_queue(e_comp_get(NULL));
+   return EINA_FALSE;
+}
+
 static void
 _ds_unmaximize_post(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
@@ -21,6 +28,7 @@ _ds_unmaximize_post(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    evas_object_geometry_set(obj, rect->x, rect->y, rect->w, rect->h);
    free(rect);
    efx_resize(ec->frame, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_POINT(x, y), w, h, time, NULL, NULL);
+   ecore_timer_add(0.1, _ds_unmaximize_render, NULL);
 }
 
 static void
