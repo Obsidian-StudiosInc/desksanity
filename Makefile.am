@@ -17,7 +17,8 @@ files_DATA = module.desktop e-module-desksanity.edj # images/icon.png
 EXTRA_DIST = module.desktop.in \
 	     e_modules-desksanity.spec.in \
 	     e-module-desksanity.edc \
-	     epic-e-256.png
+	     epic-e-256.png \
+		win_shadow.png
 
 e-module-desksanity.edj: e-module-desksanity.edc
 	$(EDJE_CC) -id $(top_srcdir) $< $@

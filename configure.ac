@@ -1,9 +1,4 @@
-dnl Process this file with autoconf to produce a configure script.
-
-# get rid of that stupid cache mechanism
-rm -f config.cache
-
-AC_INIT(desksanity, 0.6, zmike@enlightenment.org)
+AC_INIT(desksanity, 1.0, zmike@enlightenment.org)
 AC_CONFIG_MACRO_DIR([m4])
 AC_PREREQ(2.52)
 AC_CONFIG_SRCDIR(configure.ac)
