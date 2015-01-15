@@ -196,11 +196,11 @@ collections {
       parts {
          rect { "clipper"; nomouse;
             desc {
-               rel1.to: "e.swallow.content";
-               rel2.to: "e.swallow.content";
+               rel1.to: "elm.swallow.content";
+               rel2.to: "elm.swallow.content";
             }
          }
-         swallow { "e.swallow.content";
+         swallow { "elm.swallow.content";
             clip: "clipper";
          }
       }

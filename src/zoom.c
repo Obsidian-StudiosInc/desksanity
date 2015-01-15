@@ -57,7 +57,7 @@ _edje_custom_setup(Evas_Object *obj, const E_Client *ec, int x, int y, int w, in
 static void
 _hid(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
 {
-   e_comp_shape_queue(e_comp_util_evas_object_comp_get(obj));
+   e_comp_shape_queue(e_comp);
    evas_object_hide(obj);
    evas_object_del(obj);
 }
@@ -75,7 +75,7 @@ _zoom_hide(void)
        }
    else
      EINA_LIST_FREE(zoom_objs, zoom_obj)
-       edje_object_signal_emit(zoom_obj, "e,state,inactive", "e");
+       elm_layout_signal_emit(zoom_obj, "e,state,inactive", "e");
    E_FREE_LIST(handlers, ecore_event_handler_del);
    e_comp_ungrab_input(e_comp, 1, 1);
    e_comp_shape_queue(e_comp);
@@ -117,10 +117,10 @@ _client_mouse_up(E_Client *ec, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED
    e_client_desk_set(ec, desk);
    e_client_activate(ec, 1);
 
-   evas_object_geometry_get(edje_object_part_swallow_get(dm_drag, "e.swallow.client"), &x, &y, &w, &h);
-   _edje_custom_setup(dm_drag, ec, x, y, w, h);
+   evas_object_geometry_get(elm_object_part_content_get(dm_drag, "e.swallow.client"), &x, &y, &w, &h);
+   _edje_custom_setup(elm_layout_edje_get(dm_drag), ec, x, y, w, h);
 
-   edje_object_signal_emit(dm_drag, "e,drag,release", "e");
+   elm_layout_signal_emit(dm_drag, "e,drag,release", "e");
 }
 
 static Eina_Bool
@@ -138,24 +138,24 @@ _client_mouse_move(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Mov
 
         /* no adjust, not X coords */
         if ((abs(ev->root.x - dx) < DRAG_RESIST) && (abs(ev->root.y - dy) < DRAG_RESIST)) return ECORE_CALLBACK_RENEW;
-        dm_drag = edje_object_add(evas_object_evas_get(dm));
+        dm_drag = elm_layout_add(e_comp->elm);
         evas_object_pass_events_set(dm_drag, 1);
         evas_object_size_hint_min_get(dm, &w, &h);
         e_theme_edje_object_set(dm_drag, NULL, "e/modules/desksanity/zoom/client/drag");
-        edje_object_signal_callback_add(dm_drag, "e,action,done", "e", _dismiss, NULL);
+        elm_layout_signal_callback_add(dm_drag, "e,action,done", "e", _dismiss, NULL);
         evas_object_layer_set(dm_drag, E_LAYER_POPUP);
         evas_object_resize(dm_drag, w, h);
         m = e_comp_object_util_mirror_add(dm);
         e_comp_object_util_del_list_append(dm_drag, m);
         evas_object_size_hint_min_set(m, w, h);
-        edje_object_part_swallow(dm_drag, "e.swallow.client", m);
+        elm_object_part_content_set(dm_drag, "e.swallow.client", m);
         evas_object_show(dm_drag);
 
         EINA_LIST_FOREACH(zoom_objs, l, zoom_obj)
           {
-             edje_object_signal_emit(zoom_obj, "e,state,dragging", "e");
-             if (e_comp_object_util_zone_get(zoom_obj) == e_zone_current_get(e_comp_util_evas_object_comp_get(zoom_obj)))
-               edje_object_signal_emit(zoom_obj, "e,state,current", "e");
+             elm_layout_signal_emit(zoom_obj, "e,state,dragging", "e");
+             if (e_comp_object_util_zone_get(zoom_obj) == e_zone_current_get(e_comp))
+               elm_layout_signal_emit(zoom_obj, "e,state,current", "e");
           }
      }
    evas_object_move(dm_drag,
@@ -211,30 +211,30 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
    Evas_Object *ic, *e;
 
    ec = evas_object_data_get(m, "E_Client");
-   e = edje_object_add(ec->comp->evas);
+   e = elm_layout_add(e_comp->elm);
    evas_object_data_set(e, "__DSZOOMOBJ", zoom_obj);
    e_comp_object_util_del_list_append(zoom_obj, e);
    e_comp_object_util_del_list_append(zoom_obj, m);
    e_theme_edje_object_set(e, NULL, "e/modules/desksanity/zoom/client");
-   evas_object_event_callback_add(e, EVAS_CALLBACK_MOUSE_DOWN, (Evas_Object_Event_Cb)_client_mouse_down, ec);
-   evas_object_event_callback_add(e, EVAS_CALLBACK_MOUSE_UP, (Evas_Object_Event_Cb)_client_mouse_up, ec);
+   evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_DOWN, (Evas_Object_Event_Cb)_client_mouse_down, ec);
+   evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_UP, (Evas_Object_Event_Cb)_client_mouse_up, ec);
    if ((!zmw) && (!zmh))
-     edje_object_size_min_calc(e, &zmw, &zmh);
-   edje_object_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
-   edje_object_signal_callback_add(e, "e,state,active", "e", _client_active, ec);
+     edje_object_size_min_calc(elm_layout_edje_get(e), &zmw, &zmh);
+   elm_layout_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
+   elm_layout_signal_callback_add(e, "e,state,active", "e", _client_active, ec);
    if (e_client_focused_get() == ec)
      {
-        edje_object_signal_emit(e, "e,state,focused", "e");
+        elm_layout_signal_emit(e, "e,state,focused", "e");
         current = l;
      }
-   edje_object_part_swallow(e, "e.swallow.client", m);
-   edje_object_part_text_set(e, "e.text.title", e_client_util_name_get(ec));
+   elm_object_part_content_set(e, "e.swallow.client", m);
+   elm_object_part_text_set(e, "e.text.title", e_client_util_name_get(ec));
    if (ec->urgent)
-     edje_object_signal_emit(e, "e,state,urgent", "e");
-   ic = e_client_icon_add(ec, ec->comp->evas);
+     elm_layout_signal_emit(e, "e,state,urgent", "e");
+   ic = e_client_icon_add(ec, e_comp->evas);
    if (ic)
      {
-        edje_object_part_swallow(e, "e.swallow.icon", ic);
+        elm_object_part_content_set(e, "e.swallow.icon", ic);
         e_comp_object_util_del_list_append(zoom_obj, ic);
      }
    evas_object_show(e);
@@ -286,11 +286,11 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
         E_Zone *zone;
 
         e = evas_object_smart_parent_get(eina_list_data_get(n));
-        edje_object_signal_emit(e, "e,state,focused", "e");
+        elm_layout_signal_emit(e, "e,state,focused", "e");
         edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,unfocused", "e");
         current = n;
         evas_object_geometry_get(e, &x, &y, &w, &h);
-        scr = edje_object_part_swallow_get(evas_object_data_get(e, "__DSZOOMOBJ"), "e.swallow.layout");
+        scr = elm_object_part_content_get(evas_object_data_get(e, "__DSZOOMOBJ"), "e.swallow.layout");
         zone = e_comp_object_util_zone_get(scr);
         elm_scroller_region_show(scr, x - zone->x, y - zone->y, w, h);
      }
@@ -336,7 +336,7 @@ _zoom_client_add_post(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *e
    if (!m) return;
    clients = evas_object_data_get(data, "__DSCLIENTS");
    clients = eina_list_append(clients, m);
-   scr = edje_object_part_swallow_get(data, "e.swallow.layout");
+   scr = elm_object_part_content_get(data, "e.swallow.layout");
    tb = elm_object_content_get(scr);
    c = _cols_calc(eina_list_count(clients));
    pc = _cols_calc(eina_list_count(clients) - 1);
@@ -359,7 +359,7 @@ _zoom_client_add(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client *ev)
    if (e_client_util_ignored_get(ev->ec)) return ECORE_CALLBACK_RENEW;
    if (ev->ec->iconic && (!e_config->winlist_list_show_iconified)) return ECORE_CALLBACK_RENEW;
    if (((cur_act == act_zoom_zone) || (cur_act == act_zoom_desk)) &&
-     (ev->ec->zone != e_zone_current_get(ev->ec->comp))) return ECORE_CALLBACK_RENEW;
+     (ev->ec->zone != e_zone_current_get(e_comp))) return ECORE_CALLBACK_RENEW;
    if (((cur_act == act_zoom_desk) || (cur_act == act_zoom_desk_all)) &&
      (!ev->ec->desk->visible)) return ECORE_CALLBACK_RENEW;
 
@@ -395,14 +395,14 @@ _zoom_client_del(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client *ev)
              e = evas_object_smart_parent_get(m);
              e_comp_object_util_del_list_remove(zoom_obj, m);
              e_comp_object_util_del_list_remove(zoom_obj, e);
-             ic = edje_object_part_swallow_get(e, "e.swallow.icon");
+             ic = elm_object_part_content_get(e, "e.swallow.icon");
              e_comp_object_util_del_list_remove(zoom_obj, ic);
              evas_object_del(ic);
              evas_object_data_set(zoom_obj, "__DSCLIENTS", eina_list_remove_list(clients, ll));
              evas_object_del(ic);
              evas_object_del(e);
              evas_object_del(m);
-             scr = edje_object_part_swallow_get(zoom_obj, "e.swallow.layout");
+             scr = elm_object_part_content_get(zoom_obj, "e.swallow.layout");
              tb = elm_object_content_get(scr);
              _relayout(zoom_obj, scr, tb);
              return ECORE_CALLBACK_RENEW;
@@ -455,17 +455,15 @@ _hiding(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, c
 static void
 zoom(Eina_List *clients, E_Zone *zone)
 {
-   E_Comp *comp = zone->comp;
    Evas_Object *m, *bg_obj, *scr, *tb, *zoom_obj;
    unsigned int cols, id = 1;
-   int tw, th;
    Eina_Stringshare *bgf;
    Eina_List *l;
 
    if (!zoom_objs)
      {
-        e_comp_shape_queue(comp);
-        e_comp_grab_input(comp, 1, 1);
+        e_comp_shape_queue(e_comp);
+        e_comp_grab_input(e_comp, 1, 1);
         E_LIST_HANDLER_APPEND(handlers, ECORE_EVENT_KEY_DOWN, _zoom_key, NULL);
         E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_PROPERTY, _zoom_client_property, NULL);
         E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_ADD, _zoom_client_add, NULL);
@@ -473,32 +471,33 @@ zoom(Eina_List *clients, E_Zone *zone)
         E_LIST_HANDLER_APPEND(handlers, ECORE_EVENT_MOUSE_MOVE, _client_mouse_move, NULL);
      }
 
-   zoom_obj = edje_object_add(comp->evas);
-   edje_object_signal_callback_add(zoom_obj, "e,state,hiding", "e", _hiding, NULL);
-   edje_object_signal_callback_add(zoom_obj, "e,action,dismiss", "e", _dismiss, NULL);
-   edje_object_signal_callback_add(zoom_obj, "e,action,done", "e", _hid, NULL);
+   zoom_obj = elm_layout_add(e_comp->elm);
+   elm_layout_signal_callback_add(zoom_obj, "e,state,hiding", "e", _hiding, NULL);
+   elm_layout_signal_callback_add(zoom_obj, "e,action,dismiss", "e", _dismiss, NULL);
+   elm_layout_signal_callback_add(zoom_obj, "e,action,done", "e", _hid, NULL);
    evas_object_resize(zoom_obj, zone->w, zone->h);
    evas_object_layer_set(zoom_obj, E_LAYER_POPUP);
    e_theme_edje_object_set(zoom_obj, NULL, "e/modules/desksanity/zoom/base");
 
-   bg_obj = e_icon_add(comp->evas);
-   bgf = e_bg_file_get(comp->man->num, zone->num, zone->desk_x_current, zone->desk_y_current);
+   bg_obj = e_icon_add(e_comp->evas);
+   bgf = e_bg_file_get(e_comp->man->num, zone->num, zone->desk_x_current, zone->desk_y_current);
    if (eina_str_has_extension(bgf, ".edj"))
      e_icon_file_edje_set(bg_obj, bgf, "e/desktop/background");
    else
      e_icon_file_set(bg_obj, bgf);
    eina_stringshare_del(bgf);
    e_comp_object_util_del_list_append(zoom_obj, bg_obj);
-   edje_object_part_swallow(zoom_obj, "e.swallow.background", bg_obj);
+   elm_object_part_content_set(zoom_obj, "e.swallow.background", bg_obj);
 
-   scr = elm_scroller_add(e_comp->elm);
-   e_comp_object_util_del_list_append(zoom_obj, scr);
+   scr = elm_scroller_add(zoom_obj);
    e_theme_edje_object_set(scr, NULL, "e/modules/desksanity/zoom/scrollframe");
-   edje_object_part_swallow(zoom_obj, "e.swallow.layout", scr);
+   elm_object_part_content_set(zoom_obj, "e.swallow.layout", scr);
 
-   tb = elm_table_add(e_comp->elm);
-   e_comp_object_util_del_list_append(zoom_obj, tb);
+   tb = elm_table_add(scr);
+   E_EXPAND(tb);
+   E_FILL(tb);
    elm_table_homogeneous_set(tb, 1);
+   evas_object_show(tb);
 
    evas_object_show(zoom_obj);
 
@@ -510,11 +509,8 @@ zoom(Eina_List *clients, E_Zone *zone)
         _zoomobj_pack_client(evas_object_data_get(m, "E_Client"), zone, tb, m, id++, cols);
      }
 
-   evas_object_smart_calculate(tb);
-   evas_object_size_hint_min_get(tb, &tw, &th);
-   evas_object_resize(tb, tw, th);
    elm_object_content_set(scr, tb);
-   edje_object_signal_emit(zoom_obj, "e,state,active", "e");
+   elm_layout_signal_emit(zoom_obj, "e,state,active", "e");
 
    E_LIST_FOREACH(clients, _zoomobj_position_client);
    evas_object_data_set(zoom_obj, "__DSCLIENTS", clients);
@@ -577,12 +573,11 @@ _zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 static void
 _zoom_desk_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   E_Comp *comp = e_comp;
    E_Zone *zone;
    Eina_List *l;
 
    cur_act = act_zoom_desk_all;
-   EINA_LIST_FOREACH(comp->zones, l, zone)
+   EINA_LIST_FOREACH(e_comp->zones, l, zone)
      _zoom_begin(_filter_desk_all, zone);
 }
 
@@ -596,12 +591,11 @@ _zoom_zone_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 static void
 _zoom_zone_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   E_Comp *comp = e_comp;
    E_Zone *zone;
    Eina_List *l;
 
    cur_act = act_zoom_zone_all;
-   EINA_LIST_FOREACH(comp->zones, l, zone)
+   EINA_LIST_FOREACH(e_comp->zones, l, zone)
      _zoom_begin(_filter_zone, zone);
 }
 
