@@ -496,7 +496,7 @@ zoom(Eina_List *clients, E_Zone *zone)
    e_theme_edje_object_set(scr, NULL, "e/modules/desksanity/zoom/scrollframe");
    edje_object_part_swallow(zoom_obj, "e.swallow.layout", scr);
 
-   tb = elm_table_add(comp->evas);
+   tb = elm_table_add(e_comp->elm);
    e_comp_object_util_del_list_append(zoom_obj, tb);
    elm_table_homogeneous_set(tb, 1);
 
