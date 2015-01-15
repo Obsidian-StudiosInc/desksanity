@@ -200,8 +200,8 @@ _zoomobj_pack_client(const E_Client *ec, const E_Zone *zone, Evas_Object *tb, Ev
 
    r = (id - 1) / cols;
    c = (id - 1) % cols;
-   e_table_pack(tb, e, c, r, 1, 1);
-   e_table_pack_options_set(e, 0, 0, 0, 0, 0.5, 0.5, zmw + w, zmh + h, 9999, 9999);
+   evas_object_size_hint_min_set(e, zmw + w, zmh + h);
+   elm_table_pack(tb, e, c, r, 1, 1);
 }
 
 static void
@@ -292,7 +292,7 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
         evas_object_geometry_get(e, &x, &y, &w, &h);
         scr = edje_object_part_swallow_get(evas_object_data_get(e, "__DSZOOMOBJ"), "e.swallow.layout");
         zone = e_comp_object_util_zone_get(scr);
-        e_scrollframe_child_region_show(scr, x - zone->x, y - zone->y, w, h);
+        elm_scroller_region_show(scr, x - zone->x, y - zone->y, w, h);
      }
    return ECORE_CALLBACK_DONE;
 }
@@ -308,19 +308,17 @@ _relayout(Evas_Object *zoom_obj, Evas_Object *scr, Evas_Object *tb)
    clients = evas_object_data_get(zoom_obj, "__DSCLIENTS");
    e_comp_object_util_del_list_remove(zoom_obj, tb);
    evas_object_del(tb);
-   tb = e_table_add(evas_object_evas_get(zoom_obj));
+   tb = elm_table_add(e_comp->elm);
    e_comp_object_util_del_list_append(zoom_obj, tb);
-   e_table_homogenous_set(tb, 1);
-   e_table_freeze(tb);
+   elm_table_homogeneous_set(tb, 1);
    EINA_LIST_FOREACH(clients, l, m)
      _zoomobj_pack_client(evas_object_data_get(m, "E_Client"),
      e_comp_object_util_zone_get(zoom_obj), tb, m, id++,
      _cols_calc(eina_list_count(clients)));
-   e_table_thaw(tb);
-   e_table_size_min_get(tb, &tw, &th);
-   evas_object_size_hint_min_set(tb, tw, th);
+   evas_object_smart_calculate(tb);
+   evas_object_size_hint_min_get(tb, &tw, &th);
    evas_object_resize(tb, tw, th);
-   e_scrollframe_child_set(scr, tb);
+   elm_object_content_set(scr, tb);
    E_LIST_FOREACH(clients, _zoomobj_position_client);
 }
 
@@ -339,7 +337,7 @@ _zoom_client_add_post(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *e
    clients = evas_object_data_get(data, "__DSCLIENTS");
    clients = eina_list_append(clients, m);
    scr = edje_object_part_swallow_get(data, "e.swallow.layout");
-   tb = e_pan_child_get(edje_object_part_swallow_get(e_scrollframe_edje_object_get(scr), "e.swallow.content"));
+   tb = elm_object_content_get(scr);
    c = _cols_calc(eina_list_count(clients));
    pc = _cols_calc(eina_list_count(clients) - 1);
    _zoomobj_add_client(data, eina_list_last(clients), m);
@@ -401,12 +399,11 @@ _zoom_client_del(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client *ev)
              e_comp_object_util_del_list_remove(zoom_obj, ic);
              evas_object_del(ic);
              evas_object_data_set(zoom_obj, "__DSCLIENTS", eina_list_remove_list(clients, ll));
-             e_table_unpack(e);
              evas_object_del(ic);
              evas_object_del(e);
              evas_object_del(m);
              scr = edje_object_part_swallow_get(zoom_obj, "e.swallow.layout");
-             tb = e_pan_child_get(edje_object_part_swallow_get(e_scrollframe_edje_object_get(scr), "e.swallow.content"));
+             tb = elm_object_content_get(scr);
              _relayout(zoom_obj, scr, tb);
              return ECORE_CALLBACK_RENEW;
           }
@@ -494,31 +491,29 @@ zoom(Eina_List *clients, E_Zone *zone)
    e_comp_object_util_del_list_append(zoom_obj, bg_obj);
    edje_object_part_swallow(zoom_obj, "e.swallow.background", bg_obj);
 
-   scr = e_scrollframe_add(comp->evas);
+   scr = elm_scroller_add(e_comp->elm);
    e_comp_object_util_del_list_append(zoom_obj, scr);
-   e_scrollframe_custom_theme_set(scr, NULL, "e/modules/desksanity/zoom/scrollframe");
+   e_theme_edje_object_set(scr, NULL, "e/modules/desksanity/zoom/scrollframe");
    edje_object_part_swallow(zoom_obj, "e.swallow.layout", scr);
 
-   tb = e_table_add(comp->evas);
+   tb = elm_table_add(comp->evas);
    e_comp_object_util_del_list_append(zoom_obj, tb);
-   e_table_homogenous_set(tb, 1);
+   elm_table_homogeneous_set(tb, 1);
 
    evas_object_show(zoom_obj);
 
    cols = _cols_calc(eina_list_count(clients));
 
-   e_table_freeze(tb);
    EINA_LIST_FOREACH(clients, l, m)
      {
         _zoomobj_add_client(zoom_obj, l, m);
         _zoomobj_pack_client(evas_object_data_get(m, "E_Client"), zone, tb, m, id++, cols);
      }
 
-   e_table_thaw(tb);
-   e_table_size_min_get(tb, &tw, &th);
-   evas_object_size_hint_min_set(tb, tw, th);
+   evas_object_smart_calculate(tb);
+   evas_object_size_hint_min_get(tb, &tw, &th);
    evas_object_resize(tb, tw, th);
-   e_scrollframe_child_set(scr, tb);
+   elm_object_content_set(scr, tb);
    edje_object_signal_emit(zoom_obj, "e,state,active", "e");
 
    E_LIST_FOREACH(clients, _zoomobj_position_client);
