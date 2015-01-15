@@ -77,8 +77,8 @@ _zoom_hide(void)
      EINA_LIST_FREE(zoom_objs, zoom_obj)
        edje_object_signal_emit(zoom_obj, "e,state,inactive", "e");
    E_FREE_LIST(handlers, ecore_event_handler_del);
-   e_comp_ungrab_input(e_comp_get(NULL), 1, 1);
-   e_comp_shape_queue(e_comp_get(NULL));
+   e_comp_ungrab_input(e_comp, 1, 1);
+   e_comp_shape_queue(e_comp);
    current = NULL;
    cur_act = NULL;
 }
@@ -111,7 +111,7 @@ _client_mouse_up(E_Client *ec, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED
         _drag_reset();
         return;
      }
-   zone = e_comp_zone_xy_get(e_comp_get(NULL), ev->output.x, ev->output.y);
+   zone = e_comp_zone_xy_get(e_comp, ev->output.x, ev->output.y);
    desk = e_desk_current_get(zone);
    ec->hidden = 0;
    e_client_desk_set(ec, desk);
@@ -159,8 +159,8 @@ _client_mouse_move(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Mov
           }
      }
    evas_object_move(dm_drag,
-     e_comp_canvas_x_root_adjust(e_comp_get(NULL), ev->root.x) - (dx - x),
-     e_comp_canvas_y_root_adjust(e_comp_get(NULL), ev->root.y) - (dy - y));
+     e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - (dx - x),
+     e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - (dy - y));
    return ECORE_CALLBACK_RENEW;
 }
 
@@ -576,13 +576,13 @@ static void
 _zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
    cur_act = act_zoom_desk;
-   _zoom_begin(_filter_desk, e_zone_current_get(e_comp_get(NULL)));
+   _zoom_begin(_filter_desk, e_zone_current_get(e_comp));
 }
 
 static void
 _zoom_desk_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   E_Comp *comp = e_comp_get(NULL);
+   E_Comp *comp = e_comp;
    E_Zone *zone;
    Eina_List *l;
 
@@ -595,13 +595,13 @@ static void
 _zoom_zone_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
    cur_act = act_zoom_zone;
-   _zoom_begin(_filter_zone, e_zone_current_get(e_comp_get(NULL)));
+   _zoom_begin(_filter_zone, e_zone_current_get(e_comp));
 }
 
 static void
 _zoom_zone_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   E_Comp *comp = e_comp_get(NULL);
+   E_Comp *comp = e_comp;
    E_Zone *zone;
    Eina_List *l;
 

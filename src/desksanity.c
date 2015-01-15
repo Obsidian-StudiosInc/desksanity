@@ -19,7 +19,7 @@ _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj 
    if (desk_show)
      {
         e_desk_flip_end(desk_show);
-        e_comp_shape_queue_block(e_comp_get(desk_show), 0);
+        e_comp_shape_queue_block(e_comp, 0);
      }
 
    /* hide/delete current desk's mirror */
@@ -96,7 +96,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
      }
    desk_show = desk;
 
-   e_comp_shape_queue_block(e_comp_get(desk), 1);
+   e_comp_shape_queue_block(e_comp, 1);
    /* guarantee that the user gets to see each flip
     * at least once
     */
@@ -192,7 +192,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
         else if (!dy)
           h = desk->zone->h;
         dm_show = dm_add(desk);
-        o = evas_object_rectangle_add(e_comp_get(desk)->evas);
+        o = evas_object_rectangle_add(e_comp->evas);
         evas_object_geometry_set(o, x, y, w, h);
         evas_object_clip_set(dm_show, o);
         evas_object_show(o);
@@ -235,7 +235,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
                    dmh = dm_add(desk_hide);
                    e_comp_object_util_del_list_append(dm_hide, dmh);
                 }
-              clip = evas_object_rectangle_add(e_comp_get(desk_show)->evas);
+              clip = evas_object_rectangle_add(e_comp->evas);
               e_comp_object_util_del_list_append(dm_hide, clip);
               if (dx)
                 evas_object_geometry_set(clip, desk->zone->x, desk->zone->y + (i * h), w, h);
@@ -293,7 +293,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
                    e_comp_object_util_del_list_append(dm_hide, dmh[i]);
                 }
               /* clip the quad */
-              clip[i] = evas_object_rectangle_add(e_comp_get(desk)->evas);
+              clip[i] = evas_object_rectangle_add(e_comp->evas);
               e_comp_object_util_del_list_append(dm_hide, clip[i]);
               /* lay out 2x2 grid */
               evas_object_geometry_set(clip[i], cxy[i].x, cxy[i].y, desk->zone->w / 2, desk->zone->h / 2);
@@ -327,7 +327,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
                    e_comp_object_util_del_list_append(dm_hide, dmh[i]);
                 }
               /* clip the quad */
-              clip[i] = evas_object_rectangle_add(e_comp_get(desk)->evas);
+              clip[i] = evas_object_rectangle_add(e_comp->evas);
               e_comp_object_util_del_list_append(dm_hide, clip[i]);
               /* lay out 2x2 grid */
               evas_object_geometry_set(clip[i], cxy[i].x, cxy[i].y, desk->zone->w / 2, desk->zone->h / 2);
@@ -348,13 +348,13 @@ _ds_show(E_Desk *desk, int dx, int dy)
          evas_object_geometry_set(dm_show, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_hide(dm_show);
 
-         bg = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         bg = evas_object_rectangle_add(e_comp->evas);
          e_comp_object_util_del_list_append(dm_show, bg);
          evas_object_color_set(bg, 0, 0, 0, 255);
          evas_object_layer_set(bg, E_LAYER_MENU + 99);
          evas_object_geometry_set(bg, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_show(bg);
-         clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         clip = evas_object_rectangle_add(e_comp->evas);
          e_comp_object_util_del_list_append(dm_show, clip);
          /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
@@ -371,7 +371,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
       {
          Evas_Object *clip;
 
-         clip = evas_object_rectangle_add(e_comp_get(desk)->evas);
+         clip = evas_object_rectangle_add(e_comp->evas);
          /* fit clipper to zone */
          evas_object_geometry_set(clip, desk->zone->x, desk->zone->y, desk->zone->w, desk->zone->h);
          evas_object_clip_set(dm_hide, clip);

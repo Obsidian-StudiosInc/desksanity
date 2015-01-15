@@ -18,7 +18,7 @@ _magnify_end(void)
    E_Comp *comp;
 
    if (!magnifiers) return;
-   comp = e_comp_get(NULL);
+   comp = e_comp;
    for (n = 0; n < eina_list_count(comp->zones); n++)
      E_FREE_FUNC(magnifiers[n], evas_object_del);
    E_FREE(magnifiers);
@@ -42,7 +42,7 @@ _magnify_update(int x, int y)
    int w, h;
    E_Zone *zone;
 
-   zone = e_comp_zone_xy_get(e_comp_get(NULL), x, y);
+   zone = e_comp_zone_xy_get(e_comp, x, y);
    if ((int)zone->num != current_mag)
      _current_update(zone->num);
 
@@ -55,7 +55,7 @@ _magnify_update(int x, int y)
 static Eina_Bool
 _magnify_move(void *data EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
 {
-   _magnify_update(e_comp_canvas_x_root_adjust(e_comp_get(NULL), ev->root.x), e_comp_canvas_y_root_adjust(e_comp_get(NULL), ev->root.y));
+   _magnify_update(e_comp_canvas_x_root_adjust(e_comp, ev->root.x), e_comp_canvas_y_root_adjust(e_comp, ev->root.y));
    return ECORE_CALLBACK_RENEW;
 }
 
@@ -64,7 +64,7 @@ _magnify_poll(void *d EINA_UNUSED)
 {
    int x, y;
 
-   ecore_evas_pointer_xy_get(e_comp_get(NULL)->ee, &x, &y);
+   ecore_evas_pointer_xy_get(e_comp->ee, &x, &y);
    _magnify_update(x, y);
    return ECORE_CALLBACK_RENEW;
 }
@@ -93,7 +93,7 @@ _magnify_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
    int x, y, w, h;
    Eina_List *l;
 
-   comp = e_comp_get(NULL);
+   comp = e_comp;
    if (magnifiers)
      {
         _magnify_end();
