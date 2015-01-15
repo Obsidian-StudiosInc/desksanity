@@ -46,12 +46,10 @@ pips_edit(void)
 {
    Pip *pip;
    Eina_Iterator *it;
-   E_Comp *comp;
 
-   comp = e_comp;
-   if (comp->nocomp) return;
+   if (e_comp->nocomp) return;
    editing = EINA_TRUE;
-   ds_fade_setup(comp, pips_noedit);
+   ds_fade_setup(e_comp, pips_noedit);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -59,7 +57,7 @@ pips_edit(void)
         evas_object_pass_events_set(pip->pip, 0);
      }
    eina_iterator_free(it);
-   e_comp_shape_queue(comp);
+   e_comp_shape_queue(e_comp);
 }
 
 static void
@@ -132,10 +130,9 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
      }
    else if (pip->move)
      {
-        E_Comp *comp = e_comp_util_evas_object_comp_get(pip->pip);
         evas_object_move(pip->pip,
-          E_CLAMP(e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x, 0, comp->man->w - (w / 2)),
-          E_CLAMP(e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y, 0, comp->man->h - (h / 2)));
+          E_CLAMP(e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x, 0, e_comp->man->w - (w / 2)),
+          E_CLAMP(e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y, 0, e_comp->man->h - (h / 2)));
      }
    else if (pip->crop)
      {
