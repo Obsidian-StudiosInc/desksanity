@@ -100,6 +100,12 @@ _client_mouse_down(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *o
 }
 
 static void
+_client_mouse_in(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj, void *ev EINA_UNUSED)
+{
+   evas_object_raise(obj);
+}
+
+static void
 _client_mouse_up(E_Client *ec, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, Evas_Event_Mouse_Up *ev)
 {
    E_Zone *zone;
@@ -218,6 +224,7 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
    e_theme_edje_object_set(e, NULL, "e/modules/desksanity/zoom/client");
    evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_DOWN, (Evas_Object_Event_Cb)_client_mouse_down, ec);
    evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_UP, (Evas_Object_Event_Cb)_client_mouse_up, ec);
+   evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_IN, (Evas_Object_Event_Cb)_client_mouse_in, ec);
    if ((!zmw) && (!zmh))
      edje_object_size_min_calc(elm_layout_edje_get(e), &zmw, &zmh);
    elm_layout_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
