@@ -1,4 +1,4 @@
-AC_INIT(desksanity, 1.0, zmike@enlightenment.org)
+AC_INIT(desksanity, 1.0.1, zmike@enlightenment.org)
 AC_CONFIG_MACRO_DIR([m4])
 AC_PREREQ(2.52)
 AC_CONFIG_SRCDIR(configure.ac)
@@ -30,7 +30,7 @@ AC_PROG_LIBTOOL
 #])
 #AC_SUBST(LTLIBINTL)
 
-PKG_CHECK_MODULES([E], [efx enlightenment > 0.18.99])
+PKG_CHECK_MODULES([E], [efx enlightenment > 0.19])
 release=$(pkg-config --variable=release enlightenment)
 MODULE_ARCH="$host_os-$host_cpu-$release"
 AC_SUBST(MODULE_ARCH)
