@@ -482,7 +482,7 @@ zoom(Eina_List *clients, E_Zone *zone)
    elm_layout_signal_callback_add(zoom_obj, "e,state,hiding", "e", _hiding, NULL);
    elm_layout_signal_callback_add(zoom_obj, "e,action,dismiss", "e", _dismiss, NULL);
    elm_layout_signal_callback_add(zoom_obj, "e,action,done", "e", _hid, NULL);
-   evas_object_resize(zoom_obj, zone->w, zone->h);
+   evas_object_geometry_set(zoom_obj, zone->x, zone->y, zone->w, zone->h);
    evas_object_layer_set(zoom_obj, E_LAYER_POPUP);
    e_theme_edje_object_set(zoom_obj, NULL, "e/modules/desksanity/zoom/base");
 
@@ -550,13 +550,6 @@ _zoom_begin(Zoom_Filter_Cb cb, E_Zone *zone)
    Evas_Object *m;
    E_Client *ec;
 
-
-   if (zoom_objs)
-     {
-        _zoom_hide();
-        return;
-     }
-
    EINA_LIST_FOREACH(e_client_focus_stack_get(), l, ec)
      {
         if (e_client_util_ignored_get(ec)) continue;
@@ -570,9 +563,17 @@ _zoom_begin(Zoom_Filter_Cb cb, E_Zone *zone)
    zoom(clients, zone);
 }
 
+#define ZOOM_CHECK \
+   if (zoom_objs) \
+     { \
+        _zoom_hide(); \
+        return; \
+     }
+
 static void
 _zoom_desk_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
+   ZOOM_CHECK;
    cur_act = act_zoom_desk;
    _zoom_begin(_filter_desk, e_zone_current_get(e_comp));
 }
@@ -583,6 +584,7 @@ _zoom_desk_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
    E_Zone *zone;
    Eina_List *l;
 
+   ZOOM_CHECK;
    cur_act = act_zoom_desk_all;
    EINA_LIST_FOREACH(e_comp->zones, l, zone)
      _zoom_begin(_filter_desk_all, zone);
@@ -591,6 +593,7 @@ _zoom_desk_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 static void
 _zoom_zone_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
+   ZOOM_CHECK;
    cur_act = act_zoom_zone;
    _zoom_begin(_filter_zone, e_zone_current_get(e_comp));
 }
@@ -601,6 +604,7 @@ _zoom_zone_all_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
    E_Zone *zone;
    Eina_List *l;
 
+   ZOOM_CHECK;
    cur_act = act_zoom_zone_all;
    EINA_LIST_FOREACH(e_comp->zones, l, zone)
      _zoom_begin(_filter_zone, zone);
@@ -619,7 +623,7 @@ zoom_init(void)
    act_zoom_desk_all = e_action_add("zoom_desk_all");
    if (act_zoom_desk_all)
      {
-        act_zoom_desk->func.go = _zoom_desk_all_cb;
+        act_zoom_desk_all->func.go = _zoom_desk_all_cb;
         e_action_predef_name_set(D_("Compositor"), D_("Toggle zoom current desks"),
                                  "zoom_desk_all", NULL, NULL, 0);
      }
