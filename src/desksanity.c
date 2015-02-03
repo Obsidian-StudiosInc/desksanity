@@ -85,7 +85,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
         e_comp_object_effect_unclip(ec->frame);
         e_comp_object_effect_set(ec->frame, NULL);
         /* comp unignore the client */
-        e_client_comp_hidden_set(ec, EINA_FALSE);
+        e_client_comp_hidden_set(ec, ec->shaded);
         ec->hidden = 0;
         evas_object_show(ec->frame);
      }
