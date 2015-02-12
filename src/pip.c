@@ -188,7 +188,7 @@ _pip_mouse_up(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, voi
         evas_object_geometry_get(obj, &x, &y, NULL, NULL);
         if ((abs((x + pip->down.x) - ev->output.x) < 3) &&
             (abs((y + pip->down.y) - ev->output.y) < 3))
-          evas_object_del(pip->clip);
+          E_FREE_FUNC(pip->clip, evas_object_del);
         else
           {
              evas_object_color_set(pip->clip, 255, 255, 255, 255);
