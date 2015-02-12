@@ -176,14 +176,24 @@ _pip_mouse_wheel(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, 
 }
 
 static void
-_pip_mouse_up(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+_pip_mouse_up(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Pip *pip = data;
+   Evas_Event_Mouse_Up *ev = event_info;
 
    if (pip->crop)
      {
-        evas_object_color_set(pip->clip, 255, 255, 255, 255);
-        evas_object_clip_set(pip->pip, pip->clip);
+        int x, y;
+
+        evas_object_geometry_get(obj, &x, &y, NULL, NULL);
+        if ((abs((x + pip->down.x) - ev->output.x) < 3) &&
+            (abs((y + pip->down.y) - ev->output.y) < 3))
+          evas_object_del(pip->clip);
+        else
+          {
+             evas_object_color_set(pip->clip, 255, 255, 255, 255);
+             evas_object_clip_set(pip->pip, pip->clip);
+          }
      }
    pip->down.x = pip->down.y = 0;
    pip->move = pip->resize = pip->crop = 0;
