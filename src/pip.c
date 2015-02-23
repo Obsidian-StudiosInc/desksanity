@@ -387,6 +387,7 @@ _pip_hook(void *d EINA_UNUSED, E_Client *ec)
 static void
 _pip_action_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
+   if (!eina_hash_population(pips)) return;
    if (editing)
      pips_noedit();
    else
