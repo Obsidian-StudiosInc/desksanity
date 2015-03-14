@@ -40,7 +40,7 @@ clear_all(void)
 static void
 _fade_end(void *d EINA_UNUSED)
 {
-   e_comp_shape_queue_block(client->comp, 0);
+   e_comp_shape_queue_block(0);
    clear_all();
 }
 
@@ -51,7 +51,7 @@ move_x_update(E_Client *ec)
    int w, h;
    E_Zone *zone;
 
-   zone = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+   zone = e_comp_zone_xy_get(ec->x, ec->y);
    if (!zone) zone = ec->zone;
 
    if (evas_object_clip_get(mr_line_x) != zone->bg_clip_object)
@@ -77,7 +77,7 @@ move_y_update(E_Client *ec)
    int w, h;
    E_Zone *zone;
 
-   zone = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+   zone = e_comp_zone_xy_get(ec->x, ec->y);
    if (!zone) zone = ec->zone;
 
    if (evas_object_clip_get(mr_line_y) != zone->bg_clip_object)
@@ -160,9 +160,9 @@ resize_text_update(E_Client *ec)
 
    if (resize_rect[0])
      {
-        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+        zone1 = e_comp_zone_xy_get(ec->x, ec->y);
         if (!zone1) zone1 = ec->zone;
-        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+        zone2 = e_comp_zone_xy_get(ec->x + ec->w, ec->y);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
           x = zone1->w;
@@ -174,9 +174,9 @@ resize_text_update(E_Client *ec)
 
    if (resize_rect[1])
      {
-        zone1 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y);
+        zone1 = e_comp_zone_xy_get(ec->x + ec->w, ec->y);
         if (!zone1) zone1 = ec->zone;
-        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+        zone2 = e_comp_zone_xy_get(ec->x + ec->w, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
           y = zone1->h;
@@ -188,9 +188,9 @@ resize_text_update(E_Client *ec)
 
    if (resize_rect[2])
      {
-        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+        zone1 = e_comp_zone_xy_get(ec->x, ec->y + ec->h);
         if (!zone1) zone1 = ec->zone;
-        zone2 = e_comp_zone_xy_get(ec->comp, ec->x + ec->w, ec->y + ec->h);
+        zone2 = e_comp_zone_xy_get(ec->x + ec->w, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
           x = zone1->w;
@@ -202,9 +202,9 @@ resize_text_update(E_Client *ec)
 
    if (resize_rect[3])
      {
-        zone1 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y);
+        zone1 = e_comp_zone_xy_get(ec->x, ec->y);
         if (!zone1) zone1 = ec->zone;
-        zone2 = e_comp_zone_xy_get(ec->comp, ec->x, ec->y + ec->h);
+        zone2 = e_comp_zone_xy_get(ec->x, ec->y + ec->h);
         if (!zone2) zone2 = ec->zone;
         if (zone1 == zone2)
           y = zone1->h;
@@ -253,20 +253,20 @@ move_start(E_Client *ec)
    if (!ec->moving) return;
    clear_all();
    client = ec;
-   e_comp_shape_queue_block(ec->comp, 1);
+   e_comp_shape_queue_block(1);
 
-   ds_fade_setup(ec->comp, NULL);
+   ds_fade_setup(NULL);
 
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
 
-   mr_line_x = line_add(ec->comp->evas);
-   mr_line_y = line_add(ec->comp->evas);
+   mr_line_x = line_add(e_comp->evas);
+   mr_line_y = line_add(e_comp->evas);
 
-   move_text_x = text_add(ec->comp->evas);
+   move_text_x = text_add(e_comp->evas);
    move_x_update(ec);
 
-   move_text_y = text_add(ec->comp->evas);
+   move_text_y = text_add(e_comp->evas);
    move_y_update(ec);
 
    pulse(NULL, NULL, mr_line_x);
@@ -308,9 +308,9 @@ resize_start(E_Client *ec)
    if (!e_client_util_resizing_get(ec)) return;
    clear_all();
    client = ec;
-   e_comp_shape_queue_block(ec->comp, 1);
+   e_comp_shape_queue_block(1);
 
-   ds_fade_setup(ec->comp, NULL);
+   ds_fade_setup(NULL);
 
    ec->layer_block = 1;
    evas_object_layer_set(ec->frame, E_LAYER_MENU + 1);
@@ -318,32 +318,32 @@ resize_start(E_Client *ec)
    switch (ec->resize_mode)
      {
       case E_POINTER_RESIZE_TL:
-        resize_rect[0] = line_add(ec->comp->evas);
-        resize_rect[3] = line_add(ec->comp->evas);
+        resize_rect[0] = line_add(e_comp->evas);
+        resize_rect[3] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_T:
-        resize_rect[0] = line_add(ec->comp->evas);
+        resize_rect[0] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_TR:
-        resize_rect[0] = line_add(ec->comp->evas);
-        resize_rect[1] = line_add(ec->comp->evas);
+        resize_rect[0] = line_add(e_comp->evas);
+        resize_rect[1] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_R:
-        resize_rect[1] = line_add(ec->comp->evas);
+        resize_rect[1] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_BR:
-        resize_rect[1] = line_add(ec->comp->evas);
-        resize_rect[2] = line_add(ec->comp->evas);
+        resize_rect[1] = line_add(e_comp->evas);
+        resize_rect[2] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_B:
-        resize_rect[2] = line_add(ec->comp->evas);
+        resize_rect[2] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_BL:
-        resize_rect[2] = line_add(ec->comp->evas);
-        resize_rect[3] = line_add(ec->comp->evas);
+        resize_rect[2] = line_add(e_comp->evas);
+        resize_rect[3] = line_add(e_comp->evas);
         break;
       case E_POINTER_RESIZE_L:
-        resize_rect[3] = line_add(ec->comp->evas);
+        resize_rect[3] = line_add(e_comp->evas);
         break;
       default: break;
      }
@@ -351,7 +351,7 @@ resize_start(E_Client *ec)
      if (resize_rect[x])
        pulse(NULL, NULL, resize_rect[x]);
 
-   resize_text = text_add(ec->comp->evas);
+   resize_text = text_add(e_comp->evas);
    resize_text_update(ec);
 }
 

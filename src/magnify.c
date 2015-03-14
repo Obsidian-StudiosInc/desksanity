@@ -15,11 +15,9 @@ static void
 _magnify_end(void)
 {
    unsigned int n;
-   E_Comp *comp;
 
    if (!magnifiers) return;
-   comp = e_comp;
-   for (n = 0; n < eina_list_count(comp->zones); n++)
+   for (n = 0; n < eina_list_count(e_comp->zones); n++)
      E_FREE_FUNC(magnifiers[n], evas_object_del);
    E_FREE(magnifiers);
    E_FREE_FUNC(clip, evas_object_del);
@@ -42,7 +40,7 @@ _magnify_update(int x, int y)
    int w, h;
    E_Zone *zone;
 
-   zone = e_comp_zone_xy_get(e_comp, x, y);
+   zone = e_comp_zone_xy_get(x, y);
    if ((int)zone->num != current_mag)
      _current_update(zone->num);
 
@@ -55,7 +53,7 @@ _magnify_update(int x, int y)
 static Eina_Bool
 _magnify_move(void *data EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
 {
-   _magnify_update(e_comp_canvas_x_root_adjust(e_comp, ev->root.x), e_comp_canvas_y_root_adjust(e_comp, ev->root.y));
+   _magnify_update(e_comp_canvas_x_root_adjust(ev->root.x), e_comp_canvas_y_root_adjust(ev->root.y));
    return ECORE_CALLBACK_RENEW;
 }
 
@@ -87,37 +85,35 @@ _magnify_new(E_Desk *desk)
 static void
 _magnify_cb(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
 {
-   E_Comp *comp;
    E_Zone *zone;
    unsigned int n;
    int x, y, w, h;
    Eina_List *l;
 
-   comp = e_comp;
    if (magnifiers)
      {
         _magnify_end();
         return;
      }
 
-   clip = evas_object_rectangle_add(comp->evas);
+   clip = evas_object_rectangle_add(e_comp->evas);
    evas_object_show(clip);
-   ecore_evas_pointer_xy_get(comp->ee, &x, &y);
-   magnifiers = malloc(sizeof(void*) * eina_list_count(comp->zones));
-   for (n = 0, l = comp->zones, zone = eina_list_data_get(l);
-     n < eina_list_count(comp->zones);
+   ecore_evas_pointer_xy_get(e_comp->ee, &x, &y);
+   magnifiers = malloc(sizeof(void*) * eina_list_count(e_comp->zones));
+   for (n = 0, l = e_comp->zones, zone = eina_list_data_get(l);
+     n < eina_list_count(e_comp->zones);
      n++, l = eina_list_next(l), zone = eina_list_data_get(l))
      {
         _magnify_new(e_desk_current_get(zone));
 
         evas_object_clip_set(magnifiers[n], clip);
-        if (zone != e_zone_current_get(comp)) continue;
+        if (zone != e_zone_current_get()) continue;
         w = zone->w / MAG_SIZE_FACTOR;
         h = zone->h / MAG_SIZE_FACTOR;
         evas_object_geometry_set(clip, x - (w / 2), y - (h / 2), w, h);
         _current_update(n);
      }
-   if (comp->comp_type == E_PIXMAP_TYPE_X)
+   if (e_comp->comp_type == E_PIXMAP_TYPE_X)
      timer = ecore_timer_add(0.05, _magnify_poll, NULL);
    else
      handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_magnify_move, NULL);

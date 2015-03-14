@@ -83,7 +83,7 @@ typedef struct Config
 extern Mod *mod;
 extern Config *ds_config;
 
-EINTERN void ds_fade_setup(E_Comp *comp, Evas_Object_Event_Cb click_cb);
+EINTERN void ds_fade_setup(Evas_Object_Event_Cb click_cb);
 EINTERN void ds_fade_end(Ecore_Cb cb, Evas_Object_Event_Cb click_cb);
 
 EINTERN void ds_init(void);

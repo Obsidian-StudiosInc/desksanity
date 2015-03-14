@@ -37,7 +37,7 @@ pips_noedit()
         evas_object_pass_events_set(pip->pip, 1);
      }
    eina_iterator_free(it);
-   e_comp_shape_queue(e_comp);
+   e_comp_shape_queue();
    E_FREE_FUNC(action_handler, ecore_event_handler_del);
 }
 
@@ -49,7 +49,7 @@ pips_edit(void)
 
    if (e_comp->nocomp) return;
    editing = EINA_TRUE;
-   ds_fade_setup(e_comp, pips_noedit);
+   ds_fade_setup(pips_noedit);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -57,7 +57,7 @@ pips_edit(void)
         evas_object_pass_events_set(pip->pip, 0);
      }
    eina_iterator_free(it);
-   e_comp_shape_queue(e_comp);
+   e_comp_shape_queue();
 }
 
 static void
@@ -79,24 +79,24 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
         if ((pip->resize_mode == E_POINTER_RESIZE_B) ||
             (pip->resize_mode == E_POINTER_RESIZE_BL) ||
             (pip->resize_mode == E_POINTER_RESIZE_BR))
-          h = MAX(e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - y, 5);
+          h = MAX(e_comp_canvas_y_root_adjust(ev->root.y) - y, 5);
         else if ((pip->resize_mode == E_POINTER_RESIZE_T) ||
             (pip->resize_mode == E_POINTER_RESIZE_TL) ||
             (pip->resize_mode == E_POINTER_RESIZE_TR))
           {
-             h = MAX((y + h) - (e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y), 5);
-             y = e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y;
+             h = MAX((y + h) - (e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y), 5);
+             y = e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y;
           }
         if ((pip->resize_mode == E_POINTER_RESIZE_R) ||
             (pip->resize_mode == E_POINTER_RESIZE_TR) ||
             (pip->resize_mode == E_POINTER_RESIZE_BR))
-          w = MAX(e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - x, 5);
+          w = MAX(e_comp_canvas_x_root_adjust(ev->root.x) - x, 5);
         else if ((pip->resize_mode == E_POINTER_RESIZE_L) ||
             (pip->resize_mode == E_POINTER_RESIZE_TL) ||
             (pip->resize_mode == E_POINTER_RESIZE_BL))
           {
-             w = MAX((x + w) - (e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x), 5);
-             x = e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x;
+             w = MAX((x + w) - (e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x), 5);
+             x = e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x;
           }
         {
            E_Client *ec;
@@ -108,7 +108,7 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
               case E_POINTER_RESIZE_TR:
               case E_POINTER_RESIZE_BR:
               case E_POINTER_RESIZE_BL:
-                if (abs(e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x) > abs(e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y))
+                if (abs(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x) > abs(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y))
                   h = (ec->h * w) / ec->w;
                 else
                   w = (ec->w * h) / ec->h;
@@ -131,22 +131,22 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
    else if (pip->move)
      {
         evas_object_move(pip->pip,
-          E_CLAMP(e_comp_canvas_x_root_adjust(e_comp, ev->root.x) - pip->down.x, 0, e_comp->man->w - (w / 2)),
-          E_CLAMP(e_comp_canvas_y_root_adjust(e_comp, ev->root.y) - pip->down.y, 0, e_comp->man->h - (h / 2)));
+          E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->man->w - (w / 2)),
+          E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->man->h - (h / 2)));
      }
    else if (pip->crop)
      {
         int cx, cy;
 
-        if (x + pip->down.x < e_comp_canvas_x_root_adjust(e_comp, ev->root.x))
+        if (x + pip->down.x < e_comp_canvas_x_root_adjust(ev->root.x))
           cx = x + pip->down.x;
         else
-          cx = e_comp_canvas_x_root_adjust(e_comp, ev->root.x);
-        if (y + pip->down.y < e_comp_canvas_y_root_adjust(e_comp, ev->root.y))
+          cx = e_comp_canvas_x_root_adjust(ev->root.x);
+        if (y + pip->down.y < e_comp_canvas_y_root_adjust(ev->root.y))
           cy = y + pip->down.y;
         else
-          cy = e_comp_canvas_y_root_adjust(e_comp, ev->root.y);
-        evas_object_geometry_set(pip->clip, cx, cy, abs(cx - e_comp_canvas_x_root_adjust(e_comp, ev->root.x)), abs(cy - e_comp_canvas_y_root_adjust(e_comp, ev->root.y)));
+          cy = e_comp_canvas_y_root_adjust(ev->root.y);
+        evas_object_geometry_set(pip->clip, cx, cy, abs(cx - e_comp_canvas_x_root_adjust(ev->root.x)), abs(cy - e_comp_canvas_y_root_adjust(ev->root.y)));
      }
    return ECORE_CALLBACK_RENEW;
 }

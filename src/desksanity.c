@@ -19,7 +19,7 @@ _ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj 
    if (desk_show)
      {
         e_desk_flip_end(desk_show);
-        e_comp_shape_queue_block(e_comp, 0);
+        e_comp_shape_queue_block(0);
      }
 
    /* hide/delete current desk's mirror */
@@ -69,7 +69,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
    E_FREE_FUNC(dm_show, evas_object_del);
 
    /* iterate all clients */
-   E_CLIENT_FOREACH(desk->zone->comp, ec)
+   E_CLIENT_FOREACH(ec)
      {
         /* skip clients from other screens, iconic clients, and ignorable clients */
         if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;
@@ -96,7 +96,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
      }
    desk_show = desk;
 
-   e_comp_shape_queue_block(e_comp, 1);
+   e_comp_shape_queue_block(1);
    /* guarantee that the user gets to see each flip
     * at least once
     */
@@ -394,7 +394,7 @@ _ds_hide(E_Desk *desk)
    E_Client *ec;
 
    E_FREE_FUNC(dm_hide, evas_object_del);
-   E_CLIENT_FOREACH(desk->zone->comp, ec)
+   E_CLIENT_FOREACH(ec)
      {
         /* same as above */
         if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;

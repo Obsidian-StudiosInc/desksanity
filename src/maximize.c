@@ -5,7 +5,7 @@ static Ecore_Event_Handler *eh = NULL;
 static Eina_Bool
 _ds_unmaximize_render(void *d EINA_UNUSED)
 {
-   e_comp_render_queue(e_comp);
+   e_comp_render_queue();
    return EINA_FALSE;
 }
 
@@ -121,7 +121,7 @@ maximize_init(void)
 {
    E_Client *ec;
 
-   E_CLIENT_FOREACH(e_comp, ec)
+   E_CLIENT_FOREACH(ec)
      _ds_maximize_check(ec);
    eh = ecore_event_handler_add(E_EVENT_CLIENT_ADD, (Ecore_Event_Handler_Cb)_ds_maximize_add, NULL);
 }
@@ -131,7 +131,7 @@ maximize_shutdown(void)
 {
    E_Client *ec;
 
-   E_CLIENT_FOREACH(e_comp, ec)
+   E_CLIENT_FOREACH(ec)
      {
         if (e_client_util_ignored_get(ec)) continue;
         evas_object_smart_callback_del(ec->frame, "maximize_done", _ds_maximize);

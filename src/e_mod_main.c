@@ -120,14 +120,14 @@ e_modapi_save(E_Module *m EINA_UNUSED)
 }
 
 EINTERN void
-ds_fade_setup(E_Comp *comp, Evas_Object_Event_Cb click_cb)
+ds_fade_setup(Evas_Object_Event_Cb click_cb)
 {
    if (fade_obj) return;
-   fade_obj = evas_object_rectangle_add(comp->evas);
+   fade_obj = evas_object_rectangle_add(e_comp->evas);
    if (click_cb)
      evas_object_event_callback_add(fade_obj, EVAS_CALLBACK_MOUSE_DOWN, click_cb, NULL);
    evas_object_name_set(fade_obj, "fade_obj");
-   evas_object_geometry_set(fade_obj, 0, 0, comp->man->w, comp->man->h);
+   evas_object_geometry_set(fade_obj, 0, 0, e_comp->man->w, e_comp->man->h);
    evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
    evas_object_show(fade_obj);
    efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
