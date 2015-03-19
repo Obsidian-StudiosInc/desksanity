@@ -487,7 +487,7 @@ zoom(Eina_List *clients, E_Zone *zone)
    e_theme_edje_object_set(zoom_obj, NULL, "e/modules/desksanity/zoom/base");
 
    bg_obj = e_icon_add(e_comp->evas);
-   bgf = e_bg_file_get(e_comp->man->num, zone->num, zone->desk_x_current, zone->desk_y_current);
+   bgf = e_bg_file_get(zone->num, zone->desk_x_current, zone->desk_y_current);
    if (eina_str_has_extension(bgf, ".edj"))
      e_icon_file_edje_set(bg_obj, bgf, "e/desktop/background");
    else

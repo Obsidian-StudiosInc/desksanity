@@ -131,8 +131,8 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
    else if (pip->move)
      {
         evas_object_move(pip->pip,
-          E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->man->w - (w / 2)),
-          E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->man->h - (h / 2)));
+          E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->w - (w / 2)),
+          E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->h - (h / 2)));
      }
    else if (pip->crop)
      {
