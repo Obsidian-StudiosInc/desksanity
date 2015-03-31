@@ -256,7 +256,8 @@ _zoomobj_position_client(Evas_Object *m)
 
    e = evas_object_smart_parent_get(m);
    ec = evas_object_data_get(m, "E_Client");
-   evas_object_geometry_get(e, &x, &y, &w, &h);
+   evas_object_geometry_get(e, &x, &y, NULL, NULL);
+   evas_object_size_hint_min_get(e, &w, &h);
    _edje_custom_setup(e, ec, x, y, w, h);
    edje_object_signal_emit(e, "e,action,show", "e");
 }
@@ -309,23 +310,23 @@ _relayout(Evas_Object *zoom_obj, Evas_Object *scr, Evas_Object *tb)
 {
    Eina_List *l, *clients;
    Evas_Object *m;
-   int tw, th;
    unsigned int id = 1;
 
    clients = evas_object_data_get(zoom_obj, "__DSCLIENTS");
    e_comp_object_util_del_list_remove(zoom_obj, tb);
    evas_object_del(tb);
    tb = elm_table_add(e_comp->elm);
+   E_EXPAND(tb);
+   E_FILL(tb);
    e_comp_object_util_del_list_append(zoom_obj, tb);
    elm_table_homogeneous_set(tb, 1);
    EINA_LIST_FOREACH(clients, l, m)
      _zoomobj_pack_client(evas_object_data_get(m, "E_Client"),
      e_comp_object_util_zone_get(zoom_obj), tb, m, id++,
      _cols_calc(eina_list_count(clients)));
-   evas_object_smart_calculate(tb);
-   evas_object_size_hint_min_get(tb, &tw, &th);
-   evas_object_resize(tb, tw, th);
    elm_object_content_set(scr, tb);
+   evas_object_smart_need_recalculate_set(tb, 1);
+   evas_object_smart_calculate(tb);
    E_LIST_FOREACH(clients, _zoomobj_position_client);
 }
 
@@ -517,6 +518,8 @@ zoom(Eina_List *clients, E_Zone *zone)
      }
 
    elm_object_content_set(scr, tb);
+   evas_object_smart_need_recalculate_set(tb, 1);
+   evas_object_smart_calculate(tb);
    elm_layout_signal_emit(zoom_obj, "e,state,active", "e");
 
    E_LIST_FOREACH(clients, _zoomobj_position_client);
