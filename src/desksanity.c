@@ -403,6 +403,7 @@ _ds_hide(E_Desk *desk)
         /* comp hide clients */
         e_client_comp_hidden_set(ec, EINA_TRUE);
         ec->hidden = 1;
+        evas_object_show(ec->frame);
         evas_object_hide(ec->frame);
      }
    if (ds_config->disabled_transition_count == DS_LAST) return;
