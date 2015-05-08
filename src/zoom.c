@@ -218,7 +218,7 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
 
    ec = evas_object_data_get(m, "E_Client");
    e = elm_layout_add(e_comp->elm);
-   evas_object_data_set(e, "__DSZOOMOBJ", zoom_obj);
+   evas_object_data_set(elm_layout_edje_get(e), "__DSZOOMOBJ", zoom_obj);
    e_comp_object_util_del_list_append(zoom_obj, e);
    e_comp_object_util_del_list_append(zoom_obj, m);
    e_theme_edje_object_set(e, NULL, "e/modules/desksanity/zoom/client");
@@ -294,7 +294,7 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
         E_Zone *zone;
 
         e = evas_object_smart_parent_get(eina_list_data_get(n));
-        elm_layout_signal_emit(e, "e,state,focused", "e");
+        edje_object_signal_emit(e, "e,state,focused", "e");
         edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,unfocused", "e");
         current = n;
         evas_object_geometry_get(e, &x, &y, &w, &h);
