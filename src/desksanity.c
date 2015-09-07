@@ -72,7 +72,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
    E_CLIENT_FOREACH(desk->zone->comp, ec)
      {
         /* skip clients from other screens, iconic clients, and ignorable clients */
-        if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;
+        if (e_client_util_ignored_get(ec) || (ec->desk->zone != desk->zone) || (ec->iconic)) continue;
         /* always keep user-moving clients visible */
         if (ec->moving)
           {
@@ -397,7 +397,7 @@ _ds_hide(E_Desk *desk)
    E_CLIENT_FOREACH(desk->zone->comp, ec)
      {
         /* same as above */
-        if ((ec->desk->zone != desk->zone) || (ec->iconic) || e_client_util_ignored_get(ec)) continue;
+        if (e_client_util_ignored_get(ec) || (ec->desk->zone != desk->zone) || (ec->iconic)) continue;
         if (ec->moving) continue;
         if ((ec->desk != desk) || (ec->sticky)) continue;
         /* comp hide clients */
