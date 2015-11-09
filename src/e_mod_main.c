@@ -8,6 +8,12 @@ EINTERN Config *ds_config = NULL;
 
 static Evas_Object *fade_obj = NULL;
 
+static E_Action *act;
+static Eina_List *urgent;
+static Eina_List *focus_list;
+
+static Eina_List *handlers;
+
 static void
 _ds_fade_end(Ecore_Cb cb, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
@@ -57,6 +63,85 @@ _e_mod_ds_config_load(void)
    ds_config->config_version = MOD_CONFIG_FILE_VERSION;
 }
 
+static E_Client *
+ds_client_urgent_pop(E_Client *ec)
+{
+   Eina_List *l;
+
+   if (!urgent) return NULL;
+   l = eina_list_data_find_list(urgent, ec);
+   if (!l) return NULL;
+   urgent = eina_list_remove_list(urgent, l);
+   return !!e_object_unref(E_OBJECT(ec)) ? ec : NULL;
+}
+
+static void
+ds_key_focus(void)
+{
+   Eina_List *l;
+   E_Client *ec;
+   E_Zone *focus_zone = NULL;
+
+   if (!focus_list)
+     focus_zone = e_zone_current_get();
+
+   EINA_LIST_FOREACH(focus_list ?: e_client_focus_stack_get(), l, ec)
+     if ((!ec->iconic) && (!ec->focused) &&
+         ((!focus_zone) || ((ec->zone == focus_zone) && (!ec->desk->visible))))
+       {
+          e_client_activate(ec, 1);
+          break;
+       }
+   focus_list = eina_list_free(focus_list);
+}
+
+static void
+ds_key(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
+{
+   E_Client *ec = NULL;
+
+   if (!urgent)
+     {
+        ds_key_focus();
+        return;
+     }
+
+   while (!ec)
+     ec = ds_client_urgent_pop(eina_list_data_get(urgent));
+   if (ec)
+     {
+        eina_list_free(focus_list);
+        focus_list = eina_list_clone(e_client_focus_stack_get());
+        e_client_activate(ec, 1);
+     }
+   else
+     ds_key_focus();
+}
+
+static Eina_Bool
+ds_client_remove(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client *ev)
+{
+   ds_client_urgent_pop(ev->ec);
+   if (focus_list)
+     focus_list = eina_list_remove(focus_list, ev->ec);
+   return ECORE_CALLBACK_RENEW;
+}
+
+static Eina_Bool
+ds_client_urgent(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client_Property *ev)
+{
+   if (!(ev->property & E_CLIENT_PROPERTY_URGENCY)) return ECORE_CALLBACK_RENEW;
+
+   if (ev->ec->urgent)
+     {
+        e_object_ref(E_OBJECT(ev->ec));
+        urgent = eina_list_append(urgent, ev->ec);
+     }
+   else
+     ds_client_urgent_pop(ev->ec);
+   return ECORE_CALLBACK_RENEW;
+}
+
 EAPI void *
 e_modapi_init(E_Module *m)
 {
@@ -87,6 +172,13 @@ e_modapi_init(E_Module *m)
    zoom_init();
    mag_init();
 
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_PROPERTY, ds_client_urgent, NULL);
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_REMOVE, ds_client_remove, NULL);
+
+   act = e_action_add("ds_key");
+   e_action_predef_name_set(D_("Desksanity"), D_("Manage Window Focus For Me"), "ds_key", NULL, NULL, 0);
+   act->func.go = ds_key;
+
    return m;
 }
 
@@ -108,6 +200,11 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_CONFIG_DD_FREE(conf_edd);
    eina_stringshare_del(mod->edje_file);
    E_FREE(mod);
+   E_FREE_FUNC(act, e_action_del);
+   e_action_predef_name_del(D_("Desksanity"), "ds_key");
+   E_FREE_LIST(handlers, ecore_event_handler_del);
+   E_FREE_LIST(urgent, e_object_unref);
+   focus_list = eina_list_free(focus_list);
    //efx_shutdown(); broken...
    return 1;
 }
