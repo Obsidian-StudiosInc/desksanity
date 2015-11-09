@@ -13,6 +13,8 @@ static Eina_List *urgent;
 static Eina_List *focus_list;
 
 static Eina_List *handlers;
+static Ecore_Timer *ds_key_focus_timeout;
+static Eina_List *ds_key_focus_desks;
 
 static void
 _ds_fade_end(Ecore_Cb cb, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
@@ -75,23 +77,80 @@ ds_client_urgent_pop(E_Client *ec)
    return !!e_object_unref(E_OBJECT(ec)) ? ec : NULL;
 }
 
+static Eina_List *
+ds_key_list_init(const E_Zone *zone)
+{
+   int i;
+   Eina_List *desks = NULL;
+
+   for (i = 0; i < zone->desk_x_count * zone->desk_y_count; i++)
+     {
+        if (zone->desks[i]->visible) continue;
+        e_object_ref(E_OBJECT(zone->desks[i]));
+        desks = eina_list_append(desks, zone->desks[i]);
+     }
+   return desks;
+}
+
+static Eina_Bool
+ds_key_focus_timeout_cb(void *d EINA_UNUSED)
+{
+   E_Client *ec;
+
+   e_client_focus_track_thaw();
+   ec = e_client_focused_get();
+   if (ec)
+     e_client_focus_latest_set(ec);
+   ds_key_focus_timeout = NULL;
+   E_FREE_LIST(ds_key_focus_desks, e_object_unref);
+   return EINA_FALSE;
+}
+
 static void
 ds_key_focus(void)
 {
    Eina_List *l;
    E_Client *ec;
    E_Zone *focus_zone = NULL;
+   static double last;
+   double t = 0.0;
+   Eina_Bool skip = EINA_FALSE;
 
    if (!focus_list)
-     focus_zone = e_zone_current_get();
+     {
+        focus_zone = e_zone_current_get();
+        if (!ds_key_focus_desks)
+          ds_key_focus_desks = ds_key_list_init(focus_zone);
+        if (!ds_key_focus_timeout)
+          {
+             e_client_focus_track_freeze();
+             ds_key_focus_timeout = ecore_timer_add(0.25, ds_key_focus_timeout_cb, NULL);
+          }
+        t = ecore_time_unix_get();
+        skip = (t - last < 0.25);
+        if (skip)
+          ecore_timer_reset(ds_key_focus_timeout);
+     }
+   else
+     {
+        E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
+        E_FREE_LIST(ds_key_focus_desks, e_object_unref);
+        e_client_focus_track_thaw();
+     }
 
    EINA_LIST_FOREACH(focus_list ?: e_client_focus_stack_get(), l, ec)
      if ((!ec->iconic) && (!ec->focused) &&
-         ((!focus_zone) || ((ec->zone == focus_zone) && (!ec->desk->visible))))
+         ((!focus_zone) || ((ec->zone == focus_zone) && eina_list_data_find(ds_key_focus_desks, ec->desk))))
        {
+          if (ds_key_focus_desks)
+            {
+               ds_key_focus_desks = eina_list_remove(ds_key_focus_desks, ec->desk);
+               e_object_unref(E_OBJECT(ec->desk));
+            }
           e_client_activate(ec, 1);
           break;
        }
+   last = t;
    focus_list = eina_list_free(focus_list);
 }
 
@@ -205,6 +264,8 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_FREE_LIST(handlers, ecore_event_handler_del);
    E_FREE_LIST(urgent, e_object_unref);
    focus_list = eina_list_free(focus_list);
+   E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
+   E_FREE_LIST(ds_key_focus_desks, e_object_unref);
    //efx_shutdown(); broken...
    return 1;
 }
