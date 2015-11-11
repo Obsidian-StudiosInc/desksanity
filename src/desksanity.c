@@ -63,7 +63,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
 {
    E_Client *ec;
    DS_Type use_type;
-   DS_Type *disabled_types = (DS_Type*)&ds_config->types;
+   Eina_Bool *disabled_types = (Eina_Bool*)&ds_config->types;
 
    /* free existing mirror */
    E_FREE_FUNC(dm_show, evas_object_del);
