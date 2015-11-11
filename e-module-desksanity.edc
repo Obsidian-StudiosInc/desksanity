@@ -421,7 +421,7 @@ collections {
                rel1.to: "e.swallow.client";
                rel1.offset: -2 -2;
                rel2.to: "e.swallow.client";
-               rel2.offset: 2 2;
+               rel2.offset: 1 1;
                visible: 0;
                link.base: "e,state,unfocused" "e";
                link.transition: LINEAR 0.2;
