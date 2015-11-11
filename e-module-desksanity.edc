@@ -415,7 +415,7 @@ collections {
                fill.smooth: 0;
             }
          }
-         rect { "outline";
+         rect { "outline"; clip: "clip";
             desc {
                color: 51 153 255 0;
                rel1.to: "e.swallow.client";
