@@ -427,7 +427,7 @@ collections {
                link.transition: LINEAR 0.2;
             }
             desc { "active"; inherit: "default";
-               color: 51 153 255 170;
+               color: 51 153 255 140;
                visible: 1;
                link.base: "e,state,focused" "e";
                link.transition: LINEAR 0.2;
