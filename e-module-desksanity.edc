@@ -453,7 +453,8 @@ collections {
             desc { "active";
                rel1.to: "spacer";
                rel2.to: "spacer";
-               rel2.relative: 1.3 1.3;
+               rel1.relative: -0.01 -0.01;
+               rel2.relative: 1.01 1.01;
                rel2.offset: -1 -1;
                link.base: "mouse,in" "events";
                link.transition: LINEAR 0.2;
