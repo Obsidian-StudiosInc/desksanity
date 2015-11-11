@@ -324,7 +324,7 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
         evas_object_geometry_get(e, &x, &y, &w, &h);
         scr = elm_object_part_content_get(evas_object_data_get(e, "__DSZOOMOBJ"), "e.swallow.layout");
         zone = e_comp_object_util_zone_get(scr);
-        elm_scroller_region_show(scr, x - zone->x, y - zone->y, w, h);
+        elm_scroller_region_bring_in(scr, x - zone->x, y - zone->y, w, h);
      }
    return ECORE_CALLBACK_DONE;
 }
