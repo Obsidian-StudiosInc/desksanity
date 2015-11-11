@@ -18,7 +18,10 @@ EXTRA_DIST = module.desktop.in \
 	     e_modules-desksanity.spec.in \
 	     e-module-desksanity.edc \
 	     epic-e-256.png \
-		win_shadow.png
+		win_shadow.png \
+glow_bottom.png \
+glow_top.png
+
 
 e-module-desksanity.edj: e-module-desksanity.edc
 	$(EDJE_CC) -id $(top_srcdir) $< $@

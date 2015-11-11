@@ -193,7 +193,171 @@ collections {
       }
    }
    group { name: "e/modules/desksanity/zoom/scrollframe";
+      images.image: "glow_bottom.png" COMP;
+      images.image: "glow_top.png" COMP;
+      script {
+         public visible;
+         public top_visible() {
+            new st[31], Float:vl;
+            get_state(PART:"top_clip", st, 30, vl);
+            if (!strcmp(st, "default")) {
+               run_program(get_program_id("tp_vis"));
+               run_program(get_program_id("tp_glow"));
+            }
+         }
+         public bottom_visible() {
+            new st[31], Float:vl;
+            get_state(PART:"bottom_clip", st, 30, vl);
+            if (!strcmp(st, "default")) {
+               run_program(get_program_id("btm_vis"));
+               run_program(get_program_id("btm_glow"));
+            }
+         }
+      }
       parts {
+         rect { "elm.dragable.vbar";
+            dragable.x: 0 0 0;
+            dragable.y: 1 1 0;
+            dragable.confine: "elm.swallow.content";
+            desc {
+               max: 0 0;
+               fixed: 1 1;
+               color: 0 0 0 0;
+            }
+         }
+         rect { "elm.dragable.hbar";
+            dragable.x: 0 0 0;
+            dragable.y: 1 1 0;
+            dragable.confine: "elm.swallow.content";
+            desc {
+               max: 0 0;
+               fixed: 1 1;
+               color: 0 0 0 0;
+            }
+         }
+         rect { "top_clip";
+            desc {
+               color: 255 255 255 0;
+               hid;
+            }
+            desc { "visible";
+               color: 255 255 255 180;
+               vis;
+            }
+         }
+         part { "glow_top"; clip: "top_clip";
+            desc { "default";
+               fixed: 0 1;
+               min: 16 2;
+               image.normal: "glow_top.png";
+               aspect: 330 32;
+               rel2.relative: 1 0;
+               rel2.to_y: "elm.swallow.content";
+               rel1.offset: 0 4;
+            }
+            desc { "glow"; inherit: "default";
+               color: 255 255 255 100;
+            }
+         }
+         program { name: "scr_eval";
+            signal: "drag,set"; source: "elm.dragable.vbar";
+            script {
+               new Float:x, Float:y;
+
+               if (get_int(visible)) {
+                  get_drag(PART:"elm.dragable.vbar", x, y);
+                  if (y < 1.0)
+                    bottom_visible();
+                  else
+                    run_program(get_program_id("bottom_hidden"));
+                  if (y > 0.0)
+                    top_visible();
+                  else
+                    run_program(get_program_id("top_hidden"));
+               }
+            }
+         }
+         program { "tp_vis";
+            action: STATE_SET "visible";
+            target: "top_clip";
+            transition: LINEAR 0.2;
+         }
+         program { "tp_glow";
+            action: STATE_SET "glow";
+            target: "glow_top";
+            transition: SINUSOIDAL 0.7;
+            sequence {
+               action: STATE_SET "default";
+               target: "glow_top";
+               transition: SINUSOIDAL 0.7;
+               after: "tp_glow";
+            }
+         }
+         program { name: "top_hidden";
+            action: STATE_SET "default";
+            targets: "top_clip" "glow_top";
+            transition: LINEAR 0.2 CURRENT;
+         }
+         program { signal: "elm,action,show,vbar"; source: "elm";
+            script {
+               set_int(visible, 1);
+            }
+            after: "scr_eval";
+         }
+         program { signal: "elm,action,hide,vbar"; source: "elm";
+            script {
+               set_int(visible, 0);
+            }
+            sequence {
+               action: STATE_SET "default";
+               targets: "top_clip" "bottom_clip";
+               transition: LINEAR 0.2;
+            }
+         }
+         rect { "bottom_clip";
+            desc {
+               color: 255 255 255 0;
+               hid;
+            }
+            desc { "visible";
+               color: 255 255 255 180;
+               vis;
+            }
+         }
+         part { "glow_bottom"; clip: "bottom_clip";
+            desc {
+               fixed: 0 1;
+               min: 16 2;
+               image.normal: "glow_bottom.png";
+               aspect: 330 32;
+               rel1.relative: 0 1;
+               rel1.to_y: "elm.swallow.content";
+            }
+            desc { "glow"; inherit: "default";
+               color: 255 255 255 100;
+            }
+         }
+         program { "btm_vis";
+            action: STATE_SET "visible";
+            target: "bottom_clip";
+            transition: LINEAR 0.2;
+         }
+         program { "btm_glow";
+            action: STATE_SET "glow";
+            target: "glow_bottom";
+            transition: SINUSOIDAL 0.7;
+            sequence {
+               action: STATE_SET "default";
+               target: "glow_bottom";
+               transition: SINUSOIDAL 0.7;
+               after: "btm_glow";
+            }
+         }
+         program { name: "bottom_hidden";
+            action: STATE_SET "default";
+            targets: "bottom_clip" "glow_bottom";
+            transition: LINEAR 0.2 CURRENT;
+         }
          rect { "clipper"; nomouse;
             desc {
                rel1.to: "elm.swallow.content";
