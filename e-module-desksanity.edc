@@ -446,7 +446,6 @@ collections {
                rel2.to: "spacer";
                rel1.offset: 10 10;
                rel2.offset: -10 -10;
-               map.on: 1;
                link.base: "mouse,out" "events";
                link.transition: LINEAR 0.2;
                //link.after: "idle";
