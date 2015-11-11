@@ -446,7 +446,7 @@ collections {
                rel2.to: "spacer";
                rel1.offset: 10 10;
                rel2.offset: -10 -10;
-               link.base: "mouse,out" "events";
+               link.base: "e,state,inactive" "e";
                link.transition: LINEAR 0.2;
                //link.after: "idle";
             }
@@ -456,7 +456,7 @@ collections {
                rel1.relative: -0.01 -0.01;
                rel2.relative: 1.01 1.01;
                rel2.offset: -1 -1;
-               link.base: "mouse,in" "events";
+               link.base: "e,state,active" "e";
                link.transition: LINEAR 0.2;
             }
             desc { "idle1"; inherit: "default";
@@ -506,13 +506,13 @@ collections {
             desc {
                rel1.offset: -9999 -9999;
                rel2.offset: 9999 9999;
-               color: 255 255 255 200;
-               link.base: "mouse,out" "events";
+               color: 200 200 200 200;
+               link.base: "e,state,inactive" "e";
                link.transition: LINEAR 0.2;
             }
             desc { "active"; inherit: "default";
                color: 255 255 255 255;
-               link.base: "mouse,in" "events";
+               link.base: "e,state,active" "e";
                link.transition: LINEAR 0.2;
             }
          }
@@ -599,14 +599,10 @@ collections {
                action: SIGNAL_EMIT "e,action,activate" "e";
             }
             program { signal: "mouse,in"; source: "events";
-               action: SIGNAL_EMIT "e,state,active" "e";
                sequence {
                   action: ACTION_STOP;
                   targets: "idle" "idle2" "idle3" "idle4";
                }
-            }
-            program { signal: "mouse,out"; source: "events";
-               action: SIGNAL_EMIT "e,state,inactive" "e";
             }
          }
       }

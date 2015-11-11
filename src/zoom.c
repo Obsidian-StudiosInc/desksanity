@@ -100,9 +100,26 @@ _client_mouse_down(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *o
 }
 
 static void
+_client_mouse_out(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
+{
+   if (current)
+     edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,inactive", "e");
+}
+
+static void
 _client_mouse_in(E_Client *ec EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj, void *ev EINA_UNUSED)
 {
+   Eina_List *l;
+   Evas_Object *zoom_obj, *m;
+
    evas_object_raise(obj);
+   m = edje_object_part_swallow_get(obj, "e.swallow.client");
+   if (current && (eina_list_data_get(current) != m))
+     edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,inactive", "e");
+   zoom_obj = evas_object_data_get(obj, "__DSZOOMOBJ");
+   l = evas_object_data_get(zoom_obj, "__DSCLIENTS");
+   current = eina_list_data_find_list(l, m);
+   edje_object_signal_emit(obj, "e,state,active", "e");
 }
 
 static void
@@ -178,12 +195,6 @@ _client_activate(void *data, Evas_Object *obj EINA_UNUSED, const char *sig EINA_
 }
 
 static void
-_client_active(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
-{
-   evas_object_raise(obj);
-}
-
-static void
 _zoomobj_pack_client(const E_Client *ec, const E_Zone *zone, Evas_Object *tb, Evas_Object *m, unsigned int id, unsigned int cols)
 {
    int w, h;
@@ -225,10 +236,10 @@ _zoomobj_add_client(Evas_Object *zoom_obj, Eina_List *l, Evas_Object *m)
    evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_DOWN, (Evas_Object_Event_Cb)_client_mouse_down, ec);
    evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_UP, (Evas_Object_Event_Cb)_client_mouse_up, ec);
    evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_IN, (Evas_Object_Event_Cb)_client_mouse_in, ec);
+   evas_object_event_callback_add(elm_layout_edje_get(e), EVAS_CALLBACK_MOUSE_OUT, (Evas_Object_Event_Cb)_client_mouse_out, ec);
    if ((!zmw) && (!zmh))
      edje_object_size_min_calc(elm_layout_edje_get(e), &zmw, &zmh);
    elm_layout_signal_callback_add(e, "e,action,activate", "e", _client_activate, ec);
-   elm_layout_signal_callback_add(e, "e,state,active", "e", _client_active, ec);
    if (e_client_focused_get() == ec)
      {
         elm_layout_signal_emit(e, "e,state,focused", "e");
@@ -294,8 +305,8 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
         E_Zone *zone;
 
         e = evas_object_smart_parent_get(eina_list_data_get(n));
-        edje_object_signal_emit(e, "e,state,focused", "e");
-        edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,unfocused", "e");
+        edje_object_signal_emit(e, "e,state,active", "e");
+        edje_object_signal_emit(evas_object_smart_parent_get(eina_list_data_get(current)), "e,state,inactive", "e");
         current = n;
         evas_object_geometry_get(e, &x, &y, &w, &h);
         scr = elm_object_part_content_get(evas_object_data_get(e, "__DSZOOMOBJ"), "e.swallow.layout");
