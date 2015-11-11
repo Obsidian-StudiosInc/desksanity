@@ -281,16 +281,29 @@ _zoom_key(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Event_Key *ev)
    if (!e_util_strcmp(ev->key, "Escape"))
      _zoom_hide();
    else if (!e_util_strcmp(ev->key, "Left"))
-     n = eina_list_prev(current) ?: eina_list_last(current);
+     {
+        if (current)
+          n = eina_list_prev(current) ?: eina_list_last(current);
+        else
+          {
+             n = evas_object_data_get(eina_list_nth(zoom_objs, e_zone_current_get()->num), "__DSCLIENTS");
+             n = eina_list_last(n);
+          }
+     }
    else if (!e_util_strcmp(ev->key, "Right"))
      {
-        n = eina_list_next(current);
-        if (!n)
+        if (current)
           {
-             Eina_List *f;
+             n = eina_list_next(current);
+             if (!n)
+               {
+                  Eina_List *f;
 
-             for (f = n = current; f; n = f, f = eina_list_prev(f));
+                  for (f = n = current; f; n = f, f = eina_list_prev(f));
+               }
           }
+        else
+          n = evas_object_data_get(eina_list_nth(zoom_objs, e_zone_current_get()->num), "__DSCLIENTS");
      }
    else if ((!strcmp(ev->key, "Return")) || (!strcmp(ev->key, "KP_Enter")))
      {
