@@ -1,4 +1,4 @@
-AC_INIT(desksanity, 1.0.2, zmike@enlightenment.org)
+AC_INIT(desksanity, 1.0.3, zmike@enlightenment.org)
 AC_CONFIG_MACRO_DIR([m4])
 AC_PREREQ(2.52)
 AC_CONFIG_SRCDIR(configure.ac)

@@ -1,3 +1,9 @@
+Release 1.0.3
+--------------------
+
+Mike Blumenkrantz (1):
+      use correct int size for ds effect iterating
+
 Release 1.0.2
 --------------------
 
@@ -12,4 +18,6 @@ Mike Blumenkrantz (3):
       raise client zoom obj on mouse in
       fix input regions on shaded clients after desk flip
       fix multiscreen zoom and current desks zoom
+
+
 
