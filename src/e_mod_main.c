@@ -16,6 +16,9 @@ static Eina_List *handlers;
 static Ecore_Timer *ds_key_focus_timeout;
 static Eina_List *ds_key_focus_desks;
 
+static Eina_Bool focus_last_focused_per_desktop;
+static unsigned int pending_flip;
+
 static void
 _ds_fade_end(Ecore_Cb cb, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
@@ -147,6 +150,23 @@ ds_key_focus(void)
                ds_key_focus_desks = eina_list_remove(ds_key_focus_desks, ec->desk);
                e_object_unref(E_OBJECT(ec->desk));
             }
+          if (!pending_flip)
+            focus_last_focused_per_desktop = e_config->focus_last_focused_per_desktop;
+          if (!ec->desk->visible)
+            {
+               e_config->focus_last_focused_per_desktop = 0;
+               pending_flip++;
+            }
+          if (ec->sticky)
+            {
+               E_Client *tec;
+
+               E_CLIENT_FOREACH(tec)
+                 if ((!tec->sticky) && (tec->desk == ec->desk)) break;
+               /* do not flip to a sticky window if there are no other windows on its desk */
+               if ((!tec) || (tec->desk != ec->desk)) continue;
+               e_desk_show(ec->desk);
+            }
           e_client_activate(ec, 1);
           break;
        }
@@ -175,6 +195,15 @@ ds_key(E_Object *obj EINA_UNUSED, const char *params EINA_UNUSED)
      }
    else
      ds_key_focus();
+}
+
+static Eina_Bool
+ds_desk_after_show(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Desk_After_Show *ev EINA_UNUSED)
+{
+   if (pending_flip)
+     pending_flip--,
+     e_config->focus_last_focused_per_desktop = focus_last_focused_per_desktop;
+   return ECORE_CALLBACK_RENEW;
 }
 
 static Eina_Bool
@@ -233,6 +262,7 @@ e_modapi_init(E_Module *m)
 
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_PROPERTY, ds_client_urgent, NULL);
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_REMOVE, ds_client_remove, NULL);
+   E_LIST_HANDLER_APPEND(handlers, E_EVENT_DESK_AFTER_SHOW, ds_desk_after_show, NULL);
 
    act = e_action_add("ds_key");
    e_action_predef_name_set(D_("Desksanity"), D_("Manage Window Focus For Me"), "ds_key", NULL, NULL, 0);
