@@ -18,6 +18,7 @@ _ds_unmaximize_post(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    double time = 0.15;
 
    if (e_comp_config_get()->match.disable_borders) return;
+   if (e_client_has_xwindow(ec) && (!e_comp_object_frame_allowed(ec->frame))) return;
    if (e_comp_config_get()->fast_borders)
      time /= 2;
    w = ec->w, h = ec->h;
@@ -75,6 +76,7 @@ _ds_maximize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNU
    double time = 0.2;
 
    if (e_comp_config_get()->match.disable_borders) return;
+   if (e_client_has_xwindow(ec) && (!e_comp_object_frame_allowed(ec->frame))) return;
    if (e_comp_config_get()->fast_borders)
      time /= 2;
    ecx = ec->x, ecy = ec->y, ecw = ec->w, ech = ec->h;
