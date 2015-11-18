@@ -541,13 +541,14 @@ zoom(Eina_List *clients, E_Zone *zone)
         _zoomobj_pack_client(evas_object_data_get(m, "E_Client"), zone, tb, m, id++, cols);
      }
 
-   elm_object_content_set(scr, tb);
+   evas_object_geometry_set(tb, zone->x, zone->y, zone->w, zone->h);
    evas_object_smart_need_recalculate_set(tb, 1);
    evas_object_smart_calculate(tb);
    elm_layout_signal_emit(zoom_obj, "e,state,active", "e");
 
    E_LIST_FOREACH(clients, _zoomobj_position_client);
    evas_object_data_set(zoom_obj, "__DSCLIENTS", clients);
+   elm_object_content_set(scr, tb);
 
    zoom_objs = eina_list_append(zoom_objs, zoom_obj);
 }
