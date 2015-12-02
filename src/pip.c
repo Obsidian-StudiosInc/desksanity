@@ -78,6 +78,66 @@ pip_free(Pip *pip)
    free(pip);
 }
 
+static void
+_pip_resize(Pip *pip, int *ox, int *oy, int *ow, int *oh, Ecore_Event_Mouse_Move *ev)
+{
+   int x, y, w, h;
+
+   x = *ox, y = *oy, w = *ow, h = *oh;
+
+   if ((pip->resize_mode == E_POINTER_RESIZE_B) ||
+       (pip->resize_mode == E_POINTER_RESIZE_BL) ||
+       (pip->resize_mode == E_POINTER_RESIZE_BR))
+     h = MAX(e_comp_canvas_y_root_adjust(ev->root.y) - y, 5);
+   else if ((pip->resize_mode == E_POINTER_RESIZE_T) ||
+       (pip->resize_mode == E_POINTER_RESIZE_TL) ||
+       (pip->resize_mode == E_POINTER_RESIZE_TR))
+     {
+        h = MAX((y + h) - (e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y), 5);
+        y = e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y;
+     }
+   if ((pip->resize_mode == E_POINTER_RESIZE_R) ||
+       (pip->resize_mode == E_POINTER_RESIZE_TR) ||
+       (pip->resize_mode == E_POINTER_RESIZE_BR))
+     w = MAX(e_comp_canvas_x_root_adjust(ev->root.x) - x, 5);
+   else if ((pip->resize_mode == E_POINTER_RESIZE_L) ||
+       (pip->resize_mode == E_POINTER_RESIZE_TL) ||
+       (pip->resize_mode == E_POINTER_RESIZE_BL))
+     {
+        w = MAX((x + w) - (e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x), 5);
+        x = e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x;
+     }
+   {
+      E_Client *ec;
+
+      ec = evas_object_data_get(pip->pip, "E_Client");
+      switch (pip->resize_mode)
+        {
+         case E_POINTER_RESIZE_TL:
+         case E_POINTER_RESIZE_TR:
+         case E_POINTER_RESIZE_BR:
+         case E_POINTER_RESIZE_BL:
+           if (abs(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x) > abs(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y))
+             h = (ec->h * w) / ec->w;
+           else
+             w = (ec->w * h) / ec->h;
+           break;
+
+         case E_POINTER_RESIZE_T:
+         case E_POINTER_RESIZE_B:
+           w = (ec->w * h) / ec->h;
+           break;
+
+         case E_POINTER_RESIZE_R:
+         case E_POINTER_RESIZE_L:
+           h = (ec->h * w) / ec->w;
+           break;
+         default: break;
+        }
+   }
+   *ox = x, *oy = y, *ow = w, *oh = h;
+}
+
 static Eina_Bool
 _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
 {
@@ -86,63 +146,35 @@ _pip_mouse_move(Pip *pip, int t EINA_UNUSED, Ecore_Event_Mouse_Move *ev)
    evas_object_geometry_get(pip->pip, &x, &y, &w, &h);
    if (pip->resize)
      {
-        if ((pip->resize_mode == E_POINTER_RESIZE_B) ||
-            (pip->resize_mode == E_POINTER_RESIZE_BL) ||
-            (pip->resize_mode == E_POINTER_RESIZE_BR))
-          h = MAX(e_comp_canvas_y_root_adjust(ev->root.y) - y, 5);
-        else if ((pip->resize_mode == E_POINTER_RESIZE_T) ||
-            (pip->resize_mode == E_POINTER_RESIZE_TL) ||
-            (pip->resize_mode == E_POINTER_RESIZE_TR))
-          {
-             h = MAX((y + h) - (e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y), 5);
-             y = e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y;
-          }
-        if ((pip->resize_mode == E_POINTER_RESIZE_R) ||
-            (pip->resize_mode == E_POINTER_RESIZE_TR) ||
-            (pip->resize_mode == E_POINTER_RESIZE_BR))
-          w = MAX(e_comp_canvas_x_root_adjust(ev->root.x) - x, 5);
-        else if ((pip->resize_mode == E_POINTER_RESIZE_L) ||
-            (pip->resize_mode == E_POINTER_RESIZE_TL) ||
-            (pip->resize_mode == E_POINTER_RESIZE_BL))
-          {
-             w = MAX((x + w) - (e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x), 5);
-             x = e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x;
-          }
-        {
-           E_Client *ec;
-
-           ec = evas_object_data_get(pip->pip, "E_Client");
-           switch (pip->resize_mode)
-             {
-              case E_POINTER_RESIZE_TL:
-              case E_POINTER_RESIZE_TR:
-              case E_POINTER_RESIZE_BR:
-              case E_POINTER_RESIZE_BL:
-                if (abs(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x) > abs(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y))
-                  h = (ec->h * w) / ec->w;
-                else
-                  w = (ec->w * h) / ec->h;
-                break;
-
-              case E_POINTER_RESIZE_T:
-              case E_POINTER_RESIZE_B:
-                w = (ec->w * h) / ec->h;
-                break;
-
-              case E_POINTER_RESIZE_R:
-              case E_POINTER_RESIZE_L:
-                h = (ec->h * w) / ec->w;
-                break;
-              default: break;
-             }
-        }
+        _pip_resize(pip, &x, &y, &w, &h, ev);
         evas_object_geometry_set(pip->pip, x, y, w, h);
+        if (pip->clip)
+          {
+             evas_object_geometry_get(pip->clip, &x, &y, &w, &h);
+             _pip_resize(pip, &x, &y, &w, &h, ev);
+             evas_object_geometry_set(pip->clip, x, y, w, h);
+          }
      }
    else if (pip->move)
      {
-        evas_object_move(pip->pip,
-          E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->w - (w / 2)),
-          E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->h - (h / 2)));
+        if (pip->clip)
+          {
+             int cx, cy, cw, ch, dx, dy;
+
+             evas_object_geometry_get(pip->clip, &cx, &cy, &cw, &ch);
+             dx = cx - x, dy = cy - y;
+
+             evas_object_move(pip->clip,
+               E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->w - (cw / 2)),
+               E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->h - (ch / 2)));
+             evas_object_geometry_get(pip->clip, &cx, &cy, NULL, NULL);
+
+             evas_object_move(pip->pip, cx - dx, cy - dy);
+          }
+        else
+          evas_object_move(pip->pip,
+            E_CLAMP(e_comp_canvas_x_root_adjust(ev->root.x) - pip->down.x, 0, e_comp->w - (w / 2)),
+            E_CLAMP(e_comp_canvas_y_root_adjust(ev->root.y) - pip->down.y, 0, e_comp->h - (h / 2)));
      }
    else if (pip->crop)
      {
@@ -223,9 +255,7 @@ _pip_mouse_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         eina_hash_del_by_data(pips, pip);
         return;
      }
-   evas_object_geometry_get(obj, &x, &y, &w, &h);
-   pip->down.x = ev->output.x - x;
-   pip->down.y = ev->output.y - y;
+
    if (evas_key_modifier_is_set(ev->modifiers, "Shift"))
      pip->crop = ev->button == 1;
    else if (!evas_key_modifier_is_set(ev->modifiers, "Control"))
@@ -233,6 +263,11 @@ _pip_mouse_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         pip->move = ev->button == 1;
         pip->resize = ev->button == 2;
      }
+   if (pip->clip && (!pip->crop))
+     obj = pip->clip;
+   evas_object_geometry_get(obj, &x, &y, &w, &h);
+   pip->down.x = ev->output.x - x;
+   pip->down.y = ev->output.y - y;
    if (pip->resize)
      {
         if ((ev->output.x > (x + w / 5)) &&
