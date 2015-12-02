@@ -61,8 +61,18 @@ pips_edit(void)
 }
 
 static void
+_pip_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   E_Client *ec = data;
+   eina_hash_del_by_key(pips, &ec->frame);
+   if (editing && (!eina_hash_population(pips)))
+     pips_noedit();
+}
+
+static void
 pip_free(Pip *pip)
 {
+   evas_object_event_callback_del(pip->pip, EVAS_CALLBACK_DEL, _pip_del);
    evas_object_del(pip->pip);
    evas_object_del(pip->clip);
    free(pip);
@@ -285,15 +295,6 @@ _pip_mouse_down(void *data, Evas *e, Evas_Object *obj, void *event_info)
         evas_object_color_set(pip->clip, 50, 50, 50, 50);
      }
    action_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_pip_mouse_move, pip);
-}
-
-static void
-_pip_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
-{
-   E_Client *ec = data;
-   eina_hash_del_by_key(pips, &ec->frame);
-   if (editing && (!eina_hash_population(pips)))
-     pips_noedit();
 }
 
 static void
