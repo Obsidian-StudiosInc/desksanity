@@ -381,6 +381,14 @@ _pip_create(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
    efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.2, _pip_fade_end, NULL);
 
    eina_hash_add(pips, &ec->frame, pip);
+   if (editing)
+     {
+        evas_object_layer_set(pip->pip, E_LAYER_MENU + 1);
+        evas_object_pass_events_set(pip->pip, 0);
+        e_comp_shape_queue();
+     }
+   else
+     pips_edit();
 }
 
 static void
