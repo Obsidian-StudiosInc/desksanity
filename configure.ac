@@ -55,7 +55,6 @@ AC_MSG_RESULT(${EDJE_CC})
 
 AC_OUTPUT([
 Makefile
-src/Makefile
 module.desktop
 e_modules-desksanity.spec
 ], [

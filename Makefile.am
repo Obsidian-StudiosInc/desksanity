@@ -1,9 +1,9 @@
 ACLOCAL_AMFLAGS = -I m4
+AUTOMAKE_OPTIONS = subdir-objects
+
 MAINTAINERCLEANFILES = Makefile.in aclocal.m4 config.guess config.h.in \
 		       config.sub configure compile depcomp install-sh ltmain.sh \
 		       missing module.desktop config.rpath mkinstalldirs
-
-SUBDIRS = src
 
 #if HAVE_PO
 
@@ -22,6 +22,8 @@ EXTRA_DIST = module.desktop.in \
 glow_bottom.png \
 glow_top.png
 
+
+include src/Makefile.mk
 
 e-module-desksanity.edj: e-module-desksanity.edc
 	$(EDJE_CC) -id $(top_srcdir) $< $@
