@@ -21,33 +21,97 @@ struct _Instance
 };
 
 static void
-orient(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+do_orient(Instance *inst, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor anchor, Z_Gadget_Site_Gravity gravity EINA_UNUSED)
 {
-   Instance *inst = data;
    char buf[4096];
    const char *s = "float";
 
-   switch (z_gadget_site_gravity_get(obj))
+   if (anchor & Z_GADGET_SITE_ANCHOR_LEFT)
      {
-      case Z_GADGET_SITE_GRAVITY_LEFT:
-        s = "left";
-        break;
-
-      case Z_GADGET_SITE_GRAVITY_RIGHT:
-        s = "right";
-        break;
-
-      case Z_GADGET_SITE_GRAVITY_TOP:
-        s = "top";
-        break;
-
-      case Z_GADGET_SITE_GRAVITY_BOTTOM:
-        s = "bottom";
-        break;
-
-      default:
-        s = "none";
-        break;
+        if (anchor & Z_GADGET_SITE_ANCHOR_TOP)
+          {
+             switch (orient)
+               {
+                case Z_GADGET_SITE_ORIENT_HORIZONTAL:
+                  s = "top_left";
+                  break;
+                case Z_GADGET_SITE_ORIENT_VERTICAL:
+                  s = "left_top";
+                  break;
+                case Z_GADGET_SITE_ORIENT_NONE:
+                  s = "left_top";
+                  break;
+               }
+          }
+        else if (anchor & Z_GADGET_SITE_ANCHOR_BOTTOM)
+          {
+             switch (orient)
+               {
+                case Z_GADGET_SITE_ORIENT_HORIZONTAL:
+                  s = "bottom_left";
+                  break;
+                case Z_GADGET_SITE_ORIENT_VERTICAL:
+                  s = "left_bottom";
+                  break;
+                case Z_GADGET_SITE_ORIENT_NONE:
+                  s = "left_bottom";
+                  break;
+               }
+          }
+        else
+          s = "left";
+     }
+   else if (anchor & Z_GADGET_SITE_ANCHOR_RIGHT)
+     {
+        if (anchor & Z_GADGET_SITE_ANCHOR_TOP)
+          {
+             switch (orient)
+               {
+                case Z_GADGET_SITE_ORIENT_HORIZONTAL:
+                  s = "top_right";
+                  break;
+                case Z_GADGET_SITE_ORIENT_VERTICAL:
+                  s = "right_top";
+                  break;
+                case Z_GADGET_SITE_ORIENT_NONE:
+                  s = "right_top";
+                  break;
+               }
+          }
+        else if (anchor & Z_GADGET_SITE_ANCHOR_BOTTOM)
+          {
+             switch (orient)
+               {
+                case Z_GADGET_SITE_ORIENT_HORIZONTAL:
+                  s = "bottom_right";
+                  break;
+                case Z_GADGET_SITE_ORIENT_VERTICAL:
+                  s = "right_bottom";
+                  break;
+                case Z_GADGET_SITE_ORIENT_NONE:
+                  s = "right_bottom";
+                  break;
+               }
+          }
+        else
+          s = "right";
+     }
+   else if (anchor & Z_GADGET_SITE_ANCHOR_TOP)
+     s = "top";
+   else if (anchor & Z_GADGET_SITE_ANCHOR_BOTTOM)
+     s = "bottom";
+   else
+     {
+        switch (orient)
+          {
+           case Z_GADGET_SITE_ORIENT_HORIZONTAL:
+             s = "horizontal";
+             break;
+           case Z_GADGET_SITE_ORIENT_VERTICAL:
+             s = "vertical";
+             break;
+           default: break;
+          }
      }
    snprintf(buf, sizeof(buf), "e,state,orientation,%s", s);
    elm_layout_signal_emit(inst->o_button, buf, "e");
@@ -113,8 +177,16 @@ start_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *e
    free(inst);
 }
 
+static void
+_anchor_change(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+
+   do_orient(inst, z_gadget_site_orient_get(obj), z_gadget_site_anchor_get(obj), z_gadget_site_gravity_get(obj));
+}
+
 EINTERN Evas_Object *
-start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED)
+start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED, Z_Gadget_Site_Orient orient)
 {
    Evas_Object *o;
    Instance *inst;
@@ -132,7 +204,8 @@ start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED)
    evas_object_event_callback_add(o, EVAS_CALLBACK_MOUSE_DOWN,
                                   _button_cb_mouse_down, inst);
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, start_del, inst);
-   evas_object_smart_callback_add(parent, "gadget_gravity", orient, inst);
+   evas_object_smart_callback_add(parent, "gadget_anchor", _anchor_change, inst);
+   do_orient(inst, orient, z_gadget_site_anchor_get(parent), z_gadget_site_gravity_get(parent));
 
    return o;
 }

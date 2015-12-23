@@ -16,7 +16,7 @@ gadget_demo(void)
    ly = elm_layout_add(e_comp->elm);
    e_theme_edje_object_set(ly, NULL, "e/shelf/default/base");
 
-   site = z_gadget_site_add(ly, Z_GADGET_SITE_GRAVITY_TOP);
+   site = z_gadget_site_add(ly, Z_GADGET_SITE_ORIENT_VERTICAL);
    elm_object_part_content_set(ly, "e.swallow.content", site);
    elm_layout_signal_emit(ly, "e,state,orientation,left", "e");
    evas_object_geometry_set(ly, 0, 0, 48, e_comp->h);

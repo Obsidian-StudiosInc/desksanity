@@ -2,7 +2,7 @@
 #include "gadget.h"
 
 EINTERN Evas_Object *
-start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED);
+start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED, Z_Gadget_Site_Orient orient);
 EINTERN void
 gadget_demo(void);
 
