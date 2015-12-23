@@ -118,70 +118,6 @@ _gadget_object_free(E_Object *eobj)
 }
 
 static void
-_site_extents_calc(Evas_Object *box, Evas_Object_Box_Data *priv, Eina_Bool horizontal)
-{
-   Evas_Coord minw, minh, mnw, mnh, maxw, maxh;
-   Evas_Coord *rw, *rh, *rminw, *rminh, *rmaxw, *rmaxh;
-   const Eina_List *l;
-   Evas_Object_Box_Option *opt;
-   Eina_Bool max = EINA_TRUE;
-
-   minw = 0;
-   minh = 0;
-   maxw = -1;
-   maxh = -1;
-
-   /* calculate but after switched w and h for horizontal mode */
-   if (!horizontal)
-     {
-        /* use pointer for real w/h to allow size hint calcs to run only once
-         * for both orientations
-         */
-        rw = &mnw;
-        rh = &mnh;
-        rminw = &minw;
-        rminh = &minh;
-        rmaxw = &maxw;
-        rmaxh = &maxh;
-     }
-   else
-     {
-        rw = &mnh;
-        rh = &mnw;
-        rminw = &minh;
-        rminh = &minw;
-        rmaxw = &maxh;
-        rmaxh = &maxw;
-     }
-   EINA_LIST_FOREACH(priv->children, l, opt)
-     {
-        evas_object_size_hint_min_get(opt->obj, &mnw, &mnh);
-        if (*rminw < *rw) *rminw = *rw;
-        *rminh += *rh;
-
-        /* FIXME: worthwhile to allow object padding? */
-
-        evas_object_size_hint_max_get(opt->obj, &mnw, &mnh);
-        if (*rh < 0)
-          {
-             *rmaxh = -1;
-             max = EINA_FALSE;
-          }
-        if (max) *rmaxh += *rh;
-
-        if (*rw >= 0)
-          {
-             if (*rmaxw == -1) *rmaxw = *rw;
-             else if (*rmaxw > *rw) *rmaxw = *rw;
-          }
-     }
-   if ((maxw >= 0) && (minw > maxw)) maxw = minw;
-   if ((maxh >= 0) && (minh > maxh)) maxh = minh;
-   evas_object_size_hint_min_set(box, minw, minh);
-   evas_object_size_hint_max_set(box, maxw, maxh);
-}
-
-static void
 _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh, Evas_Coord *ow, Evas_Coord *oh)
 {
    Evas_Coord mnw, mnh, mxw, mxh;
@@ -212,32 +148,18 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
 }
 
 static void
-_site_layout(Evas_Object *o, Evas_Object_Box_Data *priv, void *data)
+_site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
 {
    Z_Gadget_Site *zgs = data;
    Evas_Coord x, y, w, h, xx, yy, px, py;
-   Eina_List *l, *fixed = NULL;
-   Evas_Coord minw, minh;
+   Eina_List *l;
    double ax, ay;
    Z_Gadget_Config *zgc;
-
-   _site_extents_calc(o, priv, ZGS_IS_HORIZ(zgs->gravity));
 
    evas_object_geometry_get(o, &x, &y, &w, &h);
    evas_object_geometry_set(zgs->events, x, y, w, h);
 
-   evas_object_size_hint_min_get(o, &minw, &minh);
    evas_object_box_align_get(o, &ax, &ay);
-   if (w < minw)
-     {
-        x = x + ((w - minw) * (1.0 - ax));
-        w = minw;
-     }
-   if (h < minh)
-     {
-        y = y + ((h - minh) * (1.0 - ay));
-        h = minh;
-     }
 
    px = xx = x;
    py = yy = y;
@@ -252,17 +174,25 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv, void *data)
 
              if ((zgc->x > -1) || (zgc->y > -1)) break; //one fixed gadget reached
              _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-             gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
-             gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
+             if (ZGS_IS_HORIZ(zgs->gravity))
+               gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
+             else
+               gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
              evas_object_move(zgc->gadget, gx, gy);
              if (ZGS_IS_HORIZ(zgs->gravity))
-               xx += ww;
+               xx += ow;
              else
-               yy += hh;
+               yy += oh;
           }
      }
    else
      {
+        if (ZGS_IS_HORIZ(zgs->gravity))
+          px += w;
+        else
+          py += h;
+        xx = px, yy = py;
+
         EINA_LIST_REVERSE_FOREACH(zgs->gadgets, l, zgc)
           {
              Evas_Coord gx = xx, gy = yy;
@@ -270,22 +200,24 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv, void *data)
 
              if ((zgc->x > -1) || (zgc->y > -1)) continue; //one fixed gadget reached
              _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-             gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
-             gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
+             if (ZGS_IS_HORIZ(zgs->gravity))
+               gx -= (Evas_Coord)(((double)(ww - ow)) * 0.5) + ow;
+             else
+               gy -= (Evas_Coord)(((double)(hh - oh)) * 0.5) + oh;
              evas_object_move(zgc->gadget, gx, gy);
              if (ZGS_IS_HORIZ(zgs->gravity))
-               xx += ww;
+               xx -= ow;
              else
-               yy += hh;
+               yy -= oh;
           }
      }
    px = xx;
    py = yy;
 
    if (ZGS_IS_HORIZ(zgs->gravity))
-     zgs->cur_size = px;
+     zgs->cur_size = abs((ax * w) - px) - x;
    else
-     zgs->cur_size = py;
+     zgs->cur_size = abs((ay * h) - py) - y;
 
    /* do layout for fixed position gadgets after */
    EINA_LIST_REVERSE_FOREACH(zgs->gadgets, l, zgc)
@@ -295,25 +227,40 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv, void *data)
 
         if ((zgc->x < 0) && (zgc->y < 0)) break; //once non-fixed gadget reached
         _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-        fixed = eina_list_append(fixed, zgc);
         if (ZGS_IS_HORIZ(zgc->site->gravity))
-          gx = zgc->x * (xx + MAX(w, minw));
+          {
+             gx = ((1 - ax) * xx) + (zgc->x * (w - zgs->cur_size));
+             gx += (Evas_Coord)(((double)(ww - ow)) * 0.5 * -ax);
+          }
         else
-          gy = zgc->y * (yy + MAX(h, minh));
-        gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
-        gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
-        if (gx < px) gx = px;
-        if (gy < py) gy = py;
-        
+          {
+             gy = ((1 - ay) * yy) + (zgc->y * (h - zgs->cur_size));
+             gy += (Evas_Coord)(((double)(hh - oh)) * 0.5 * -ay);
+          }
+        if (zgs->gravity % 2)//left/top
+          {
+             if (gx < px) gx = px;
+          }
+        else
+          {
+             if (gx > px) gx = px;
+          }
+
+        if (zgs->gravity % 2)//left/top
+          {
+             if (gy < py) gy = py;
+          }
+        else
+          {
+             if (gy > py) gy = py;
+          }
+
         evas_object_move(zgc->gadget, gx, gy);
         if (ZGS_IS_HORIZ(zgs->gravity))
-          px = gx + ww;
+          px = gx + (-ax * ow);
         else
-          py = gy + hh;
+          py = gy + (-ay * oh);
      }
-
-
-   eina_list_free(fixed);
 }
 
 static int
@@ -382,9 +329,9 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
         /* adjust contiguous site geometry for gravity */
         elm_box_align_get(zgc->site->layout, &ax, &ay);
         if (ZGS_IS_HORIZ(zgc->site->gravity))
-          sx = x + ((w - zgc->site->cur_size) * (1.0 - ax));
+          sx = x + ((w - zgc->site->cur_size) * ax);
         else
-          sy = y + ((h - zgc->site->cur_size) * (1.0 - ay));
+          sy = y + ((h - zgc->site->cur_size) * ay);
         if (E_INSIDE(mx, my, sx, sy, *rw, *rh))
           {
              /* dragging inside relative area */
@@ -687,6 +634,7 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    zgc->y = -1;
    zgc->site = zgs;
    evas_object_data_set(g, "__z_gadget", zgc);
+   e_util_size_debug_set(g, 1);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    zgs->gadgets = eina_list_sorted_insert(zgs->gadgets, (Eina_Compare_Cb)_site_gadgets_sort, zgc);
