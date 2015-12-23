@@ -1,4 +1,10 @@
 #include "e_mod_main.h"
+#include "gadget.h"
+
+EINTERN Evas_Object *
+start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED);
+EINTERN void
+gadget_demo(void);
 
 EAPI E_Module_Api e_modapi = {E_MODULE_API_VERSION, "Desksanity"};
 static E_Config_DD *conf_edd = NULL;
@@ -268,6 +274,9 @@ e_modapi_init(E_Module *m)
    e_action_predef_name_set(D_("Desksanity"), D_("Manage Window Focus For Me"), "ds_key", NULL, NULL, 0);
    act->func.go = ds_key;
 
+   z_gadget_type_add("Start", start_create);
+   gadget_demo();
+
    return m;
 }
 
@@ -297,6 +306,8 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
    E_FREE_LIST(ds_key_focus_desks, e_object_unref);
    //efx_shutdown(); broken...
+
+   z_gadget_type_del("Start");
    return 1;
 }
 
