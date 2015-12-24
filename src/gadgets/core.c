@@ -1,8 +1,13 @@
 #include "e_mod_main.h"
 #include "gadget.h"
 
-#define ZGS_IS_HORIZ(orient) \
-  ((orient) <= Z_GADGET_SITE_ORIENT_HORIZONTAL)
+#define SNAP_DISTANCE 5
+
+#define IS_HORIZ(orient) \
+  ((orient) == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+
+#define IS_VERT(orient) \
+  ((orient) == Z_GADGET_SITE_ORIENT_VERTICAL)
 
 #define ZGS_GET(obj) \
    Z_Gadget_Site *zgs; \
@@ -19,12 +24,12 @@ typedef struct Z_Gadget_Site
    Z_Gadget_Site_Orient orient;
    Z_Gadget_Site_Anchor anchor;
    Eina_List *gadgets;
+   Eina_List *fixed_gadgets;
    int cur_size;
 
    Z_Gadget_Config *action;
    Ecore_Event_Handler *move_handler;
    Ecore_Event_Handler *mouse_up_handler;
-   int button;
 } Z_Gadget_Site;
 
 
@@ -50,10 +55,10 @@ static Eina_List *sites;
 static E_Action *move_act;
 
 static Z_Gadget_Config *
-_gadget_at_xy(Z_Gadget_Site *zgs, int x, int y)
+_gadget_at_xy(Z_Gadget_Site *zgs, int x, int y, Z_Gadget_Config *exclude)
 {
    Eina_List *l;
-   Z_Gadget_Config *zgc;
+   Z_Gadget_Config *zgc, *saved = NULL;
    Evas_Object *win;
    int wx, wy;
 
@@ -66,8 +71,27 @@ _gadget_at_xy(Z_Gadget_Site *zgs, int x, int y)
         if (!zgc->gadget) continue;
 
         evas_object_geometry_get(zgc->gadget, &ox, &oy, &ow, &oh);
-        if (E_INSIDE(x, y, ox + wx, oy + wy, ow, oh)) return zgc;
+        if (E_INSIDE(x, y, ox + wx, oy + wy, ow, oh))
+          {
+             if (zgc == exclude) saved = zgc;
+             else return zgc;
+          }
      }
+   if (saved) return saved;
+   EINA_LIST_FOREACH(zgs->fixed_gadgets, l, zgc)
+     {
+        int ox, oy, ow, oh;
+
+        if (!zgc->gadget) continue;
+
+        evas_object_geometry_get(zgc->gadget, &ox, &oy, &ow, &oh);
+        if (E_INSIDE(x, y, ox + wx, oy + wy, ow, oh))
+          {
+             if (zgc == exclude) saved = zgc;
+             else return zgc;
+          }
+     }
+   if (saved) return saved;
    return NULL;
 }
 
@@ -144,27 +168,48 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
 {
    Evas_Coord mnw, mnh, mxw, mxh;
    Z_Gadget_Config *zgc;
+   Evas_Aspect_Control aspect;
+   int ax, ay;
 
    zgc = evas_object_data_get(g, "__z_gadget");
 
    evas_object_size_hint_min_get(g, &mnw, &mnh);
    evas_object_size_hint_max_get(g, &mxw, &mxh);
+   evas_object_size_hint_aspect_get(g, &aspect, &ax, &ay);
 
-   /* TODO: aspect */
-   if (ZGS_IS_HORIZ(zgc->site->orient))
+   if (IS_HORIZ(zgc->site->orient))
      {
         *ww = mnw, *hh = h;
         if (!(*ww)) *ww = *hh;
      }
-   else
+   else if (IS_VERT(zgc->site->orient))
      {
         *hh = mnh, *ww = w;
         if (!(*hh)) *hh = *ww;
      }
-   *ow = *ww;
-   if ((mxw >= 0) && (mxw < *ow)) *ow = mxw;
-   *oh = *hh;
-   if ((mxh >= 0) && (mxh < *oh)) *oh = mxh;
+   if (zgc->site->orient && ax && ay)
+     {
+        switch (aspect)
+          {
+           case EVAS_ASPECT_CONTROL_HORIZONTAL:
+             *hh = (*ww * ay / ax);
+             break;
+           case EVAS_ASPECT_CONTROL_VERTICAL:
+             *ww = (*hh * ax / ay);
+             break;
+           default:
+             if (IS_HORIZ(zgc->site->orient))
+               *ww = (*hh * ax / ay);
+             else
+               *hh = (*ww * ay / ax);
+          }
+     }
+   *ow = *ww, *oh = *hh;
+   if ((!ax) && (!ay))
+     {
+        if ((mxw >= 0) && (mxw < *ow)) *ow = mxw;
+        if ((mxh >= 0) && (mxh < *oh)) *oh = mxh;
+     }
 
    evas_object_resize(g, *ow, *oh);
 }
@@ -194,14 +239,23 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             if ((zgc->x > -1) || (zgc->y > -1)) break; //one fixed gadget reached
              _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-             if (ZGS_IS_HORIZ(zgs->orient))
+             if (IS_HORIZ(zgs->orient))
                gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
              else
                gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
-             evas_object_move(zgc->gadget, gx, gy);
-             if (ZGS_IS_HORIZ(zgs->orient))
+             if (zgc->over)
+               evas_object_stack_above(zgc->gadget, zgc->over->gadget);
+             if (zgs->orient && ((zgc->x > -1) || (zgc->y > -1)))
+               {
+                  if (IS_HORIZ(zgs->orient))
+                    evas_object_move(zgc->gadget, zgc->x * (double)w, gy);
+                  else
+                    evas_object_move(zgc->gadget, gx, zgc->y * (double)h);
+               }
+             else
+               evas_object_move(zgc->gadget, gx, gy);
+             if (IS_HORIZ(zgs->orient))
                xx += ow;
              else
                yy += oh;
@@ -209,7 +263,7 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
      }
    else
      {
-        if (ZGS_IS_HORIZ(zgs->orient))
+        if (IS_HORIZ(zgs->orient))
           px += w;
         else
           py += h;
@@ -220,14 +274,13 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             if ((zgc->x > -1) || (zgc->y > -1)) continue; //one fixed gadget reached
              _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-             if (ZGS_IS_HORIZ(zgs->orient))
+             if (IS_HORIZ(zgs->orient))
                gx -= (Evas_Coord)(((double)(ww - ow)) * 0.5) + ow;
              else
                gy -= (Evas_Coord)(((double)(hh - oh)) * 0.5) + oh;
              evas_object_move(zgc->gadget, gx, gy);
-             if (ZGS_IS_HORIZ(zgs->orient))
+             if (IS_HORIZ(zgs->orient))
                xx -= ow;
              else
                yy -= oh;
@@ -236,20 +289,19 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
    px = xx;
    py = yy;
 
-   if (ZGS_IS_HORIZ(zgs->orient))
+   if (IS_HORIZ(zgs->orient))
      zgs->cur_size = abs((ax * w) - px) - x;
    else
      zgs->cur_size = abs((ay * h) - py) - y;
 
    /* do layout for fixed position gadgets after */
-   EINA_LIST_REVERSE_FOREACH(zgs->gadgets, l, zgc)
+   EINA_LIST_REVERSE_FOREACH(zgs->fixed_gadgets, l, zgc)
      {
         Evas_Coord gx = xx, gy = yy;
         int ww, hh, ow, oh;
 
-        if ((zgc->x < 0) && (zgc->y < 0)) break; //once non-fixed gadget reached
         _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
-        if (ZGS_IS_HORIZ(zgc->site->orient))
+        if (IS_HORIZ(zgc->site->orient))
           {
              gx = ((1 - ax) * xx) + (zgc->x * (w - zgs->cur_size));
              gx += (Evas_Coord)(((double)(ww - ow)) * 0.5 * -ax);
@@ -278,24 +330,11 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
           }
 
         evas_object_move(zgc->gadget, gx, gy);
-        if (ZGS_IS_HORIZ(zgs->orient))
+        if (IS_HORIZ(zgs->orient))
           px = gx + (-ax * ow);
         else
           py = gy + (-ay * oh);
      }
-}
-
-static int
-_site_gadgets_sort(Z_Gadget_Config *a, Z_Gadget_Config *b)
-{
-   double *ax, *bx;
-   if (ZGS_IS_HORIZ(a->site->orient))
-     ax = &a->x, bx = &b->x;
-   else
-     ax = &a->y, bx = &b->y;
-   if (a->site->gravity % 2)//left/top
-     return lround(*ax - *bx);
-   return lround(*bx - *ax);
 }
 
 static Eina_Bool
@@ -307,7 +346,6 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
    int gw, gh;//"relative" region size
    int *rw, *rh;//"relative" region size aliasing
    int ox, oy, ow, oh;//gadget geom
-   Eina_List *fixed;
    Z_Gadget_Config *z;
    Evas_Object *win;
 
@@ -327,7 +365,7 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
    rw = &gw;
    rh = &gh;
    /* normalize constrained axis to get a valid coordinate */
-   if (ZGS_IS_HORIZ(zgc->site->orient))
+   if (IS_HORIZ(zgc->site->orient))
      {
         my = y + 1;
         *rw = zgc->site->cur_size;
@@ -337,11 +375,8 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
         mx = x + 1;
         *rh = zgc->site->cur_size;
      }
-
-   /* find first "fixed" position gadget for later use */
-   EINA_LIST_FOREACH(zgc->site->gadgets, fixed, z)
-     if ((z->x > -1) || (z->y > -1)) break;
-
+#define OUT \
+  fprintf(stderr, "OUT %d\n", __LINE__)
    if (E_INSIDE(mx, my, x, y, w, h))
      {
         /* dragging inside site */
@@ -350,84 +385,150 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
 
         /* adjust contiguous site geometry for gravity */
         elm_box_align_get(zgc->site->layout, &ax, &ay);
-        if (ZGS_IS_HORIZ(zgc->site->orient))
+        if (IS_HORIZ(zgc->site->orient))
           sx = x + ((w - zgc->site->cur_size) * ax);
         else
           sy = y + ((h - zgc->site->cur_size) * ay);
-        if (E_INSIDE(mx, my, sx, sy, *rw, *rh))
+        if (E_INSIDE(mx, my, sx, sy, *rw + SNAP_DISTANCE, *rh + SNAP_DISTANCE))
           {
              /* dragging inside relative area */
+             int ggx, ggy, ggw, ggh;
              Eina_List *l;
+             Eina_Bool left = EINA_FALSE;//moving gadget is "left" of this gadget
 
              EINA_LIST_FOREACH(zgc->site->gadgets, l, z)
                {
-                  int ggx, ggy, ggw, ggh;
-                  Eina_Bool left;//moving gadget is "left" of this gadget
-                  int *pmx, *pggx, *pggw, *pwx, *pw;
-                  double *zx;
-
-                  if (z == zgc) continue;
-                  if (!z->gadget) continue; //no gadget object for this config
-
+                  if (z == zgc)
+                    {
+                       left = EINA_TRUE;
+                       continue;
+                    }
                   evas_object_geometry_get(z->gadget, &ggx, &ggy, &ggw, &ggh);
                   ggx += wx, ggy += wy;
-                  /* not inside this gadget! */
-                  if (!E_INSIDE(mx, my, ggx, ggy, ggw, ggh)) continue;
+                  if (E_INTERSECTS(ox, oy, ow, oh, ggx, ggy, ggw, ggh)) break;
+               }
 
-                  if (ZGS_IS_HORIZ(zgc->site->orient))
-                    left = ox < ggx;
-                  else
-                    left = oy < ggy;
+             if (z && (z != zgc))
+               {
+                  /* found a gadget that is not the current gadget */
+                  int *pmx, *pggx, *pggw, *pwx, *px, *pw, *offx;
+                  double *zx;
 
-                  if (ZGS_IS_HORIZ(zgc->site->orient))
-                    pmx = &mx, pggx = &ggx, pggw = &ggw, pwx = &wx, pw = &w, zx = &zgc->x;
+                  if (IS_HORIZ(zgc->site->orient))
+                    pmx = &mx, pggx = &ggx, pggw = &ggw, pwx = &wx,
+                    px = &x, pw = &w, zx = &zgc->x, offx = &zgc->offset.x;
                   else
-                    pmx = &my, pggx = &ggy, pggw = &ggh, pwx = &wy, pw = &h, zx = &zgc->y;
+                    pmx = &my, pggx = &ggy, pggw = &ggh, pwx = &wy,
+                    px = &y, pw = &h, zx = &zgc->y, offx = &zgc->offset.y;
                   if (left)
                     {
-                       if (*pmx > *pggx + (*pggw / 2)) // more than halfway over
+                       if (*pmx >= *pggx + (*pggw / 2)) // more than halfway over
                          {
-                            zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
-                            zgc->site->gadgets = eina_list_append_relative_list(zgc->site->gadgets, zgc, l);
-                            zgc->over = NULL;
-                            *zx = -1.0;
+                            if (eina_list_data_get(l->next) != zgc)
+                              {
+                                 zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+                                 zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                                 zgc->site->gadgets = eina_list_append_relative_list(zgc->site->gadgets, zgc, l);
+                                 zgc->over = NULL;
+                                 *zx = -1.0;
+                                 OUT;
+                              }
                          }
                        else // less
                          {
-                            *zx = (double)(*pmx - *pwx) / (double)*pw;
+                            *zx = (double)(*pmx - *pwx - *px - *offx) / (double)*pw;
                             zgc->over = z;
+                            OUT;
                          }
                     }
                   else
                     {
-                       if (*pmx < *pggx + (*pggw / 2)) // more than halfway over
+                       if (*pmx <= *pggx + (*pggw / 2)) // more than halfway over
                          {
-                            zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
-                            zgc->site->gadgets = eina_list_prepend_relative_list(zgc->site->gadgets, zgc, l);
-                            zgc->over = NULL;
-                            *zx = -1.0;
+                            if (eina_list_data_get(l->prev) != zgc)
+                              {
+                                 zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+                                 zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                                 zgc->site->gadgets = eina_list_prepend_relative_list(zgc->site->gadgets, zgc, l);
+                                 zgc->over = NULL;
+                                 *zx = -1.0;
+                                 OUT;
+                              }
                          }
                        else // less
                          {
-                            *zx = (double)(*pmx - *pwx) / (double)*pw;
+                            *zx = (double)(*pmx - *pwx - *px - *offx) / (double)*pw;
                             zgc->over = z;
+                            OUT;
                          }
+                    }
+               }
+             else if (E_INSIDE(mx, my, sx, sy, *rw, *rh))
+               {
+                  /* no found gadget: dragging over current gadget's area */
+                  if (IS_HORIZ(zgc->site->orient))
+                    {
+                       /* clamp to site geometry */
+                       if (mx - wx - x - zgc->offset.x > 0)
+                         {
+                            if (mx - wx - x - zgc->offset.x + ow <= w)
+                              {zgc->x = (double)(mx - wx - x - zgc->offset.x) / w;OUT;}
+                            else
+                              {zgc->x = -1;OUT;}
+                         }
+                       else
+                         {zgc->x = -1;OUT;}
+                    }
+                  else if (IS_VERT(zgc->site->orient))
+                    {
+                       /* clamp to site geometry */
+                       if (my - wy - y - zgc->offset.y > 0) 
+                         {
+                            if (my - wy - y - zgc->offset.y + oh <= h)
+                              {zgc->y = (double)(my - wy - y - zgc->offset.y) / h;OUT;}
+                            else
+                              {zgc->y = -1;OUT;}
+                         }
+                       else
+                         {zgc->y = -1;OUT;}
+                    }
+                  zgc->over = NULL;
+               }
+             else
+               {
+                  if (eina_list_data_get(zgc->site->gadgets) == zgc)
+                    {
+                       /* first gadget in site dragging past itself:
+                        * lock position
+                        */
+                       if (IS_HORIZ(zgc->site->orient))
+                         zgc->x = -1;
+                       else if (IS_VERT(zgc->site->orient))
+                         zgc->y = -1;
+                    }
+                  else
+                    {
+                       zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+                       zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                       zgc->site->gadgets = eina_list_append(zgc->site->gadgets, zgc);
+                       if (IS_HORIZ(zgc->site->orient))
+                         zgc->x = -1;
+                       else if (IS_VERT(zgc->site->orient))
+                         zgc->y = -1;
                     }
                }
           }
         else
           {
              /* dragging outside relative area */
-             if (fixed)
+             if (zgc->site->fixed_gadgets)
                {
                   Eina_List *l;
                   Z_Gadget_Config *zz;
 
-                  for (l = fixed; l; l = l->next)
+                  EINA_LIST_FOREACH(zgc->site->fixed_gadgets, l, zz)
                     {
                        int zx, zy, zw, zh;
-
-                       zz = eina_list_data_get(l);
 
                        if ((zz = zgc) || (!zz->gadget)) continue;
 
@@ -443,12 +544,14 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
              if (!((zgc->x > -1) || (zgc->y > -1)))
                {
                   zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
-                  zgc->site->gadgets = eina_list_append(zgc->site->gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_append(zgc->site->fixed_gadgets, zgc);
                }
-             if (ZGS_IS_HORIZ(zgc->site->orient))
-               zgc->x = (double)(mx - wx - zgc->offset.x) / (double)w;
+             if (IS_HORIZ(zgc->site->orient))
+               zgc->x = (double)(mx - wx - zgc->offset.x - ((1 - ax) * zgc->site->cur_size)) / (double)w;
              else
-               zgc->y = (double)(my - wy - zgc->offset.y) / (double)h;
+               zgc->y = (double)(my - wy - zgc->offset.y - ((1 - ay) * zgc->site->cur_size)) / (double)h;
+             OUT;
           }
      }
    else
@@ -457,7 +560,7 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
         Eina_Bool left;
         double *fx;
 
-        if (ZGS_IS_HORIZ(zgc->site->orient))
+        if (IS_HORIZ(zgc->site->orient))
           {
              fx = &zgc->x;
              left = mx <= x;
@@ -472,13 +575,16 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
              if (zgc->site->gravity % 2) //left/top
                {
                   *fx = -1.0;
-                  zgc->site->gadgets = eina_list_promote_list(zgc->site->gadgets, eina_list_data_find_list(zgc->site->gadgets, zgc));
+                  zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                  zgc->site->gadgets = eina_list_prepend(zgc->site->gadgets, zgc);OUT;
                }
              else
                {
                   *fx = 0.0;
                   zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
-                  zgc->site->gadgets = eina_list_prepend_relative_list(zgc->site->gadgets, zgc, fixed);
+                  zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_prepend(zgc->site->fixed_gadgets, zgc);OUT;
                }
           }
         else
@@ -486,13 +592,16 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
              if (zgc->site->gravity % 2) //left/top
                {
                   *fx = 1.0;
-                  zgc->site->gadgets = eina_list_demote_list(zgc->site->gadgets, eina_list_data_find_list(zgc->site->gadgets, zgc));
+                  zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                  zgc->site->fixed_gadgets = eina_list_append(zgc->site->fixed_gadgets, zgc);OUT;
                }
              else
                {
                   *fx = -1.0;
                   zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
-                  zgc->site->gadgets = eina_list_prepend_relative_list(zgc->site->gadgets, zgc, fixed);
+                  zgc->site->fixed_gadgets = eina_list_remove(zgc->site->fixed_gadgets, zgc);
+                  zgc->site->gadgets = eina_list_append(zgc->site->gadgets, zgc);OUT;
                }
           }
      }
@@ -506,17 +615,21 @@ _gadget_act_modify_end(E_Object *obj, const char *params EINA_UNUSED, E_Binding_
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
+   Eina_Bool recalc = EINA_FALSE;
 
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
    zgc->modifying = 0;
    if (zgc->over)
      {
+      OUT;
         /* FIXME: animate */
         zgc->x = zgc->y = -1.0;
-        elm_box_recalculate(zgc->site->layout);
+        zgc->over = NULL;
+        recalc = 1;
      }
-   zgc->over = NULL;
+   if (recalc)
+     elm_box_recalculate(zgc->site->layout);
 
    E_FREE_FUNC(zgc->site->move_handler, ecore_event_handler_del);
 }
@@ -555,7 +668,7 @@ _site_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_
    Evas_Event_Mouse_Down *ev = event_info;
    Z_Gadget_Config *zgc;
 
-   zgc = _gadget_at_xy(zgs, ev->output.x, ev->output.y);
+   zgc = _gadget_at_xy(zgs, ev->output.x, ev->output.y, NULL);
    if (!zgc) return;
    if (e_bindings_mouse_down_evas_event_handle(E_BINDING_CONTEXT_ANY, zgc->e_obj_inherit, event_info))
      {
@@ -686,7 +799,7 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    evas_object_data_set(g, "__z_gadget", zgc);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
-   zgs->gadgets = eina_list_sorted_insert(zgs->gadgets, (Eina_Compare_Cb)_site_gadgets_sort, zgc);
+   zgs->gadgets = eina_list_append(zgs->gadgets, zgc);
    _gadget_reparent(zgs, g);
    evas_object_raise(zgs->events);
 
@@ -727,7 +840,12 @@ z_gadget_type_del(const char *type)
    if (!gadget_types) return;
 
    EINA_LIST_FOREACH(sites, l, zgs)
-     EINA_LIST_FOREACH(zgs->gadgets, ll, zgc)
-       if (eina_streq(buf, zgc->type))
-         evas_object_del(zgc->gadget);
+     {
+        EINA_LIST_FOREACH(zgs->gadgets, ll, zgc)
+          if (eina_streq(buf, zgc->type))
+            evas_object_del(zgc->gadget);
+        EINA_LIST_FOREACH(zgs->fixed_gadgets, ll, zgc)
+          if (eina_streq(buf, zgc->type))
+            evas_object_del(zgc->gadget);
+     }
 }
