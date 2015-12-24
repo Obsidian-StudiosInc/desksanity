@@ -21,7 +21,7 @@ struct _Instance
 };
 
 static void
-do_orient(Instance *inst, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor anchor, Z_Gadget_Site_Gravity gravity EINA_UNUSED)
+do_orient(Instance *inst, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor anchor)
 {
    char buf[4096];
    const char *s = "float";
@@ -182,7 +182,7 @@ _anchor_change(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
 
-   do_orient(inst, z_gadget_site_orient_get(obj), z_gadget_site_anchor_get(obj), z_gadget_site_gravity_get(obj));
+   do_orient(inst, z_gadget_site_orient_get(obj), z_gadget_site_anchor_get(obj));
 }
 
 EINTERN Evas_Object *
@@ -200,12 +200,13 @@ start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED, Z_Gadget_Site_Or
    elm_layout_signal_emit(o, "e,state,unfocused", "e");
 
    inst->o_button = o;
+   evas_object_size_hint_aspect_set(o, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
 
    evas_object_event_callback_add(o, EVAS_CALLBACK_MOUSE_DOWN,
                                   _button_cb_mouse_down, inst);
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, start_del, inst);
    evas_object_smart_callback_add(parent, "gadget_anchor", _anchor_change, inst);
-   do_orient(inst, orient, z_gadget_site_anchor_get(parent), z_gadget_site_gravity_get(parent));
+   do_orient(inst, orient, z_gadget_site_anchor_get(parent));
 
    return o;
 }

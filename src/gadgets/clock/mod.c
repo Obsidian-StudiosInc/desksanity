@@ -1,6 +1,8 @@
-#include "e.h"
 #include "clock.h"
 
+static E_Config_DD *conf_edd = NULL;
+static E_Config_DD *conf_item_edd = NULL;
+static E_Action *act = NULL;
 
 static void
 _e_mod_action(const char *params)
@@ -8,14 +10,13 @@ _e_mod_action(const char *params)
    Eina_List *l;
    Instance *inst;
 
-   if (!params) return;
-   if (strcmp(params, "show_calendar")) return;
+   if (!eina_streq(params, "show_calendar")) return;
 
    EINA_LIST_FOREACH(clock_instances, l, inst)
      if (inst->popup)
-       _clock_popup_free(inst);
+       clock_popup_free(inst);
      else
-       _clock_popup_new(inst);
+       clock_popup_new(inst);
 }
 
 static void
@@ -24,23 +25,15 @@ _e_mod_action_cb(E_Object *obj EINA_UNUSED, const char *params)
    _e_mod_action(params);
 }
 
-
-/* module setup */
-E_API E_Module_Api e_modapi =
-{
-   E_MODULE_API_VERSION,
-   "Clock"
-};
-
-E_API void *
-e_modapi_init(E_Module *m)
+EINTERN void
+clock_init(void)
 {
    conf_item_edd = E_CONFIG_DD_NEW("Config_Item", Config_Item);
 #undef T
 #undef D
 #define T Config_Item
 #define D conf_item_edd
-   E_CONFIG_VAL(D, T, id, STR);
+   E_CONFIG_VAL(D, T, id, UINT);
    E_CONFIG_VAL(D, T, weekend.start, INT);
    E_CONFIG_VAL(D, T, weekend.len, INT);
    E_CONFIG_VAL(D, T, week.start, INT);
@@ -72,15 +65,11 @@ e_modapi_init(E_Module *m)
         e_action_predef_name_set(N_("Clock"), N_("Toggle calendar"), "clock", "show_calendar", NULL, 0);
      }
 
-   clock_config->module = m;
-
-   z_gadget_type_add("clock", clock_create);
-
-   return m;
+   z_gadget_type_add("Clock", clock_create);
 }
 
-E_API int
-e_modapi_shutdown(E_Module *m EINA_UNUSED)
+EINTERN void
+clock_shutdown(void)
 {
    if (act)
      {
@@ -109,7 +98,30 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    conf_item_edd = NULL;
    conf_edd = NULL;
 
-   e_gadcon_provider_unregister(&_gadcon_class);
+   z_gadget_type_del("Clock");
+}
+
+#if 0
+/* module setup */
+E_API E_Module_Api e_modapi =
+{
+   E_MODULE_API_VERSION,
+   "Clock"
+};
+
+E_API void *
+e_modapi_init(E_Module *m)
+{
+   clock_init();
+
+   clock_config->module = m;
+   return m;
+}
+
+E_API int
+e_modapi_shutdown(E_Module *m EINA_UNUSED)
+{
+
 
    return 1;
 }
@@ -120,3 +132,4 @@ e_modapi_save(E_Module *m EINA_UNUSED)
    e_config_domain_save("module.clock", conf_edd, clock_config);
    return 1;
 }
+#endif

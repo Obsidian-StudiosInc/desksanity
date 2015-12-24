@@ -1,8 +1,7 @@
 #include "e_mod_main.h"
 #include "gadget.h"
 
-EINTERN Evas_Object *
-start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED, Z_Gadget_Site_Orient orient);
+
 EINTERN void
 gadget_demo(void);
 
@@ -274,7 +273,6 @@ e_modapi_init(E_Module *m)
    e_action_predef_name_set(D_("Desksanity"), D_("Manage Window Focus For Me"), "ds_key", NULL, NULL, 0);
    act->func.go = ds_key;
 
-   z_gadget_type_add("Start", start_create);
    gadget_demo();
 
    return m;

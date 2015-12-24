@@ -1,5 +1,11 @@
-#ifndef E_MOD_MAIN_H
-#define E_MOD_MAIN_H
+#ifndef CLOCK_H
+#define CLOCK_H
+
+#include "e.h"
+#include "gadget.h"
+
+#define _(X) (X)
+#define N_(X) (X)
 
 E_API extern E_Module_Api e_modapi;
 
@@ -9,6 +15,7 @@ E_API int   e_modapi_save     (E_Module *m);
 
 typedef struct _Config Config;
 typedef struct _Config_Item Config_Item;
+typedef struct _Instance Instance;
 
 struct _Config
 {
@@ -20,7 +27,7 @@ struct _Config
 
 struct _Config_Item
 {
-  const char *id;
+  unsigned int id;
   struct {
       int start, len; // 0->6 0 == sun, 6 == sat, number of days
    } weekend;
@@ -34,9 +41,37 @@ struct _Config_Item
    Eina_Bool changed;
 };
 
+
+struct _Instance
+{
+   E_Gadcon_Client *gcc;
+   Evas_Object     *o_clock, *o_table, *o_popclock, *o_cal;
+   E_Gadcon_Popup  *popup;
+
+   int              madj;
+
+   char             year[8];
+   char             month[64];
+   const char      *daynames[7];
+   unsigned char    daynums[7][6];
+   Eina_Bool        dayweekends[7][6];
+   Eina_Bool        dayvalids[7][6];
+   Eina_Bool        daytoday[7][6];
+   Config_Item     *cfg;
+};
+
 void e_int_config_clock_module(Evas_Object *parent, Config_Item *ci);
 void e_int_clock_instances_redo(Eina_Bool all);
 
+EINTERN void time_daynames_clear(Instance *inst);
+EINTERN void time_string_format(Instance *inst, char *buf, int bufsz);
+EINTERN void time_instance_update(Instance *inst);
+
+EINTERN Evas_Object *clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient);
+EINTERN void clock_popup_new(Instance *inst);
+EINTERN void clock_popup_free(Instance *inst);
+
 extern Config *clock_config;
+extern Eina_List *clock_instances;
 
 #endif

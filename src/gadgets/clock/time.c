@@ -1,4 +1,3 @@
-#include "e.h"
 #include "clock.h"
 
 #include <sys/time.h>
@@ -11,23 +10,17 @@ static Eina_List *clock_eio_handlers = NULL;
 
 static Ecore_Timer *update_today = NULL;
 
-static void
-_clear_timestrs(Instance *inst)
+EINTERN void
+time_daynames_clear(Instance *inst)
 {
    int x;
 
    for (x = 0; x < 7; x++)
-     {
-        if (inst->daynames[x])
-          {
-             eina_stringshare_del(inst->daynames[x]);
-             inst->daynames[x] = NULL;
-          }
-     }
+     eina_stringshare_replace(&inst->daynames[x], NULL);
 }
 
-static void
-_todaystr_eval(Instance *inst, char *buf, int bufsz)
+EINTERN void
+time_string_format(Instance *inst, char *buf, int bufsz)
 {
    if (!inst->cfg->show_date)
      {
@@ -60,96 +53,30 @@ _todaystr_eval(Instance *inst, char *buf, int bufsz)
 }
 
 
-static void
-_time_eval(Instance *inst)
+EINTERN void
+time_instance_update(Instance *inst)
 {
    struct timeval timev;
    struct tm *tm, tms, tmm, tm2;
    time_t tt;
    int started = 0, num, i;
+   int day;
 
    tzset();
    gettimeofday(&timev, NULL);
    tt = (time_t)(timev.tv_sec);
    tm = localtime(&tt);
 
-   _clear_timestrs(inst);
-   if (tm)
+   time_daynames_clear(inst);
+   if (!tm) return;
+
+   // tms == current date time "saved"
+   // tm2 == date to look at adjusting for madj
+   // tm2 == month baseline @ 1st
+   memcpy(&tms, tm, sizeof(struct tm));
+   num = 0;
+   for (day = (0 - 6); day < (31 + 16); day++)
      {
-        int day;
-
-        // tms == current date time "saved"
-        // tm2 == date to look at adjusting for madj
-        // tm2 == month baseline @ 1st
-        memcpy(&tms, tm, sizeof(struct tm));
-        num = 0;
-        for (day = (0 - 6); day < (31 + 16); day++)
-          {
-             memcpy(&tmm, &tms, sizeof(struct tm));
-             tmm.tm_sec = 0;
-             tmm.tm_min = 0;
-             tmm.tm_hour = 10;
-             tmm.tm_mon += inst->madj;
-             tmm.tm_mday = 1; // start at the 1st of the month
-             tmm.tm_wday = 0; // ignored by mktime
-             tmm.tm_yday = 0; // ignored by mktime
-             tmm.tm_isdst = 0; // ignored by mktime
-             tt = mktime(&tmm);
-             tm = localtime(&tt);
-             memcpy(&tm2, tm, sizeof(struct tm));
-
-             tt = mktime(&tmm);
-             tt += (day * 60 * 60 * 24);
-             tm = localtime(&tt);
-             memcpy(&tmm, tm, sizeof(struct tm));
-             if (!started)
-               {
-                  if (tm->tm_wday == inst->cfg->week.start)
-                    {
-                       char buf[32];
-
-                       for (i = 0; i < 7; i++, tm->tm_wday = (tm->tm_wday + 1) % 7)
-                         {
-                            strftime(buf, sizeof(buf), "%a", tm);
-                            inst->daynames[i] = eina_stringshare_add(buf);
-                         }
-                       started = 1;
-                    }
-               }
-             if (started)
-               {
-                  int y = num / 7;
-                  int x = num % 7;
-
-                  if (y < 6)
-                    {
-                       inst->daynums[x][y] = tmm.tm_mday;
-
-                       inst->dayvalids[x][y] = 0;
-                       if (tmm.tm_mon == tm2.tm_mon) inst->dayvalids[x][y] = 1;
-
-                       inst->daytoday[x][y] = 0;
-                       if ((tmm.tm_mon == tms.tm_mon) &&
-                           (tmm.tm_year == tms.tm_year) &&
-                           (tmm.tm_mday == tms.tm_mday))
-                         inst->daytoday[x][y] = 1;
-
-                       inst->dayweekends[x][y] = 0;
-                       for (i = inst->cfg->weekend.start;
-                            i < (inst->cfg->weekend.start + inst->cfg->weekend.len);
-                            i++)
-                         {
-                            if (tmm.tm_wday == (i % 7))
-                              {
-                                 inst->dayweekends[x][y] = 1;
-                                 break;
-                              }
-                         }
-                    }
-                  num++;
-               }
-          }
-
         memcpy(&tmm, &tms, sizeof(struct tm));
         tmm.tm_sec = 0;
         tmm.tm_min = 0;
@@ -162,11 +89,75 @@ _time_eval(Instance *inst)
         tt = mktime(&tmm);
         tm = localtime(&tt);
         memcpy(&tm2, tm, sizeof(struct tm));
-        inst->year[sizeof(inst->year) - 1] = 0;
-        strftime(inst->year, sizeof(inst->year) - 1, "%Y", (const struct tm *)&tm2);
-        inst->month[sizeof(inst->month) - 1] = 0;
-        strftime(inst->month, sizeof(inst->month) - 1, "%B", (const struct tm *)&tm2); // %b for short month
+
+        tt = mktime(&tmm);
+        tt += (day * 60 * 60 * 24);
+        tm = localtime(&tt);
+        memcpy(&tmm, tm, sizeof(struct tm));
+        if (!started)
+          {
+             if (tm->tm_wday == inst->cfg->week.start)
+               {
+                  char buf[32];
+
+                  for (i = 0; i < 7; i++, tm->tm_wday = (tm->tm_wday + 1) % 7)
+                    {
+                       strftime(buf, sizeof(buf), "%a", tm);
+                       inst->daynames[i] = eina_stringshare_add(buf);
+                    }
+                  started = 1;
+               }
+          }
+        if (started)
+          {
+             int y = num / 7;
+             int x = num % 7;
+
+             if (y < 6)
+               {
+                  inst->daynums[x][y] = tmm.tm_mday;
+
+                  inst->dayvalids[x][y] = 0;
+                  if (tmm.tm_mon == tm2.tm_mon) inst->dayvalids[x][y] = 1;
+
+                  inst->daytoday[x][y] = 0;
+                  if ((tmm.tm_mon == tms.tm_mon) &&
+                      (tmm.tm_year == tms.tm_year) &&
+                      (tmm.tm_mday == tms.tm_mday))
+                    inst->daytoday[x][y] = 1;
+
+                  inst->dayweekends[x][y] = 0;
+                  for (i = inst->cfg->weekend.start;
+                       i < (inst->cfg->weekend.start + inst->cfg->weekend.len);
+                       i++)
+                    {
+                       if (tmm.tm_wday == (i % 7))
+                         {
+                            inst->dayweekends[x][y] = 1;
+                            break;
+                         }
+                    }
+               }
+             num++;
+          }
      }
+
+   memcpy(&tmm, &tms, sizeof(struct tm));
+   tmm.tm_sec = 0;
+   tmm.tm_min = 0;
+   tmm.tm_hour = 10;
+   tmm.tm_mon += inst->madj;
+   tmm.tm_mday = 1; // start at the 1st of the month
+   tmm.tm_wday = 0; // ignored by mktime
+   tmm.tm_yday = 0; // ignored by mktime
+   tmm.tm_isdst = 0; // ignored by mktime
+   tt = mktime(&tmm);
+   tm = localtime(&tt);
+   memcpy(&tm2, tm, sizeof(struct tm));
+   inst->year[sizeof(inst->year) - 1] = 0;
+   strftime(inst->year, sizeof(inst->year) - 1, "%Y", (const struct tm *)&tm2);
+   inst->month[sizeof(inst->month) - 1] = 0;
+   strftime(inst->month, sizeof(inst->month) - 1, "%B", (const struct tm *)&tm2); // %b for short month
 }
 
 
