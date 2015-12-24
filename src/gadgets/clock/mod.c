@@ -5,7 +5,7 @@ static E_Config_DD *conf_item_edd = NULL;
 static E_Action *act = NULL;
 
 static void
-_e_mod_action(const char *params)
+_e_mod_action_cb(E_Object *obj EINA_UNUSED, const char *params, ...)
 {
    Eina_List *l;
    Instance *inst;
@@ -17,12 +17,6 @@ _e_mod_action(const char *params)
        clock_popup_free(inst);
      else
        clock_popup_new(inst);
-}
-
-static void
-_e_mod_action_cb(E_Object *obj EINA_UNUSED, const char *params)
-{
-   _e_mod_action(params);
 }
 
 EINTERN void
@@ -57,15 +51,16 @@ clock_init(void)
    act = e_action_add("clock");
    if (act)
      {
-        act->func.go = _e_mod_action_cb;
-        act->func.go_key = _e_mod_action_cb;
-        act->func.go_mouse = _e_mod_action_cb;
-        act->func.go_edge = _e_mod_action_cb;
+        act->func.go = (void*)_e_mod_action_cb;
+        act->func.go_key = (void*)_e_mod_action_cb;
+        act->func.go_mouse = (void*)_e_mod_action_cb;
+        act->func.go_edge = (void*)_e_mod_action_cb;
 
         e_action_predef_name_set(N_("Clock"), N_("Toggle calendar"), "clock", "show_calendar", NULL, 0);
      }
 
    z_gadget_type_add("Clock", clock_create);
+   time_init();
 }
 
 EINTERN void
@@ -85,10 +80,7 @@ clock_shutdown(void)
           e_object_del(E_OBJECT(clock_config->config_dialog));
 
         EINA_LIST_FREE(clock_config->items, ci)
-          {
-             eina_stringshare_del(ci->id);
-             free(ci);
-          }
+          free(ci);
 
         free(clock_config);
         clock_config = NULL;
@@ -99,6 +91,7 @@ clock_shutdown(void)
    conf_edd = NULL;
 
    z_gadget_type_del("Clock");
+   time_shutdown();
 }
 
 #if 0

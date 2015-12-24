@@ -40,6 +40,8 @@ struct Z_Gadget_Config
    Evas_Object *gadget; //list?
    unsigned int id;
    Eina_Stringshare *type;
+   Z_Gadget_Configure_Cb configure;
+   Evas_Object *cfg_object;
    Z_Gadget_Site *site;
 
    double x, y; //fixed % positioning
@@ -53,6 +55,7 @@ static Eina_Hash *gadget_types;
 static Eina_List *sites;
 
 static E_Action *move_act;
+static E_Action *configure_act;
 
 static Z_Gadget_Config *
 _gadget_at_xy(Z_Gadget_Site *zgs, int x, int y, Z_Gadget_Config *exclude)
@@ -160,6 +163,7 @@ _gadget_object_free(E_Object *eobj)
    zgc = evas_object_data_get(g, "__z_gadget");
    evas_object_smart_callback_call(zgc->site->layout, "gadget_removed", zgc->gadget);
    E_FREE_FUNC(zgc->gadget, evas_object_del);
+   evas_object_del(zgc->cfg_object);
    E_FREE(zgc->e_obj_inherit);
 }
 
@@ -649,6 +653,36 @@ _gadget_act_modify(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Even
      zgc->site->move_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_gadget_mouse_move, zgc);
 }
 
+static void
+_gadget_act_configure_object_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc = data;
+
+   zgc->cfg_object = NULL;
+}
+
+static void
+_gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc;
+   Evas_Object *g;
+
+   if (obj->type != Z_GADGET_TYPE) return;
+
+   g = e_object_data_get(obj);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   if (!zgc->configure) return;
+   if (zgc->cfg_object)
+     {
+        evas_object_raise(zgc->cfg_object);
+        evas_object_show(zgc->cfg_object);
+        return;
+     }
+   zgc->cfg_object = zgc->configure(zgc->gadget);
+   if (!zgc->cfg_object) return;
+   evas_object_event_callback_add(zgc->cfg_object, EVAS_CALLBACK_DEL, _gadget_act_configure_object_del, zgc);
+}
+
 static Eina_Bool
 _site_mouse_up(Z_Gadget_Site *zgs, int t EINA_UNUSED, Ecore_Event_Mouse_Button *ev)
 {
@@ -724,10 +758,14 @@ z_gadget_site_add(Evas_Object *parent, Z_Gadget_Site_Orient orient)
 
    if (!move_act)
      {
-        move_act = e_action_add("gadget_modify");
-        e_action_predef_name_set(D_("Gadgets"), D_("Move gadget"), "gadget_modify", NULL, NULL, 0);
+        move_act = e_action_add("gadget_move");
+        e_action_predef_name_set(D_("Gadgets"), D_("Move gadget"), "gadget_move", NULL, NULL, 0);
         move_act->func.go_mouse = _gadget_act_modify;
         move_act->func.end_mouse = _gadget_act_modify_end;
+
+        configure_act = e_action_add("gadget_configure");
+        e_action_predef_name_set(D_("Gadgets"), D_("Configure gadget"), "gadget_configure", NULL, NULL, 0);
+        configure_act->func.go_mouse = _gadget_act_configure;
      }
 
    return zgs->layout;
@@ -742,7 +780,7 @@ z_gadget_site_anchor_get(Evas_Object *obj)
 }
 
 Z_API void
-z_gadget_site_anchor(Evas_Object *obj, Z_Gadget_Site_Anchor an)
+z_gadget_site_anchor_set(Evas_Object *obj, Z_Gadget_Site_Anchor an)
 {
    ZGS_GET(obj);
 
@@ -812,12 +850,23 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
 Z_API Evas_Object *
 z_gadget_site_get(Evas_Object *g)
 {
-   Z_Gadget_Site *zgs;
+   Z_Gadget_Config *zgc;
 
    EINA_SAFETY_ON_NULL_RETURN_VAL(g, NULL);
-   zgs = evas_object_data_get(g, "__z_gadget");
-   EINA_SAFETY_ON_NULL_RETURN_VAL(zgs, NULL);
-   return zgs->layout;
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN_VAL(zgc, NULL);
+   return zgc->site->layout;
+}
+
+Z_API void
+z_gadget_configure_cb_set(Evas_Object *g, Z_Gadget_Configure_Cb cb)
+{
+   Z_Gadget_Config *zgc;
+
+   EINA_SAFETY_ON_NULL_RETURN(g);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN(zgc);
+   zgc->configure = cb;
 }
 
 Z_API void

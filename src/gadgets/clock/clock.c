@@ -398,7 +398,10 @@ _conf_item_get(unsigned int *id)
 static void
 _clock_gadget_added_cb(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
-   _eval_instance_size(data);
+   Instance *inst = data;
+
+   _eval_instance_size(inst);
+   z_gadget_configure_cb_set(inst->o_clock, config_clock);
    evas_object_smart_callback_del_full(obj, "gadget_added", _clock_gadget_added_cb, data);
 }
 
@@ -458,6 +461,7 @@ clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient)
    inst->o_clock = o;
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, clock_del, inst);
    evas_object_smart_callback_add(parent, "gadget_added", _clock_gadget_added_cb, inst);
+   evas_object_data_set(o, "clock", inst);
 
    evas_object_event_callback_add(inst->o_clock,
                                   EVAS_CALLBACK_MOUSE_DOWN,

@@ -241,15 +241,6 @@ _clock_eio_error(void *d EINA_UNUSED, int type EINA_UNUSED, void *event)
           clock_tzetc_monitor = eio_monitor_add("/etc");
      }
 
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_ERROR, _clock_eio_error, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_CREATED, _clock_eio_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_MODIFIED, _clock_eio_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_DELETED, _clock_eio_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_SELF_DELETED, _clock_eio_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_SELF_RENAME, _clock_eio_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, E_EVENT_SYS_RESUME, _clock_time_update, NULL);
-   E_LIST_HANDLER_APPEND(clock_eio_handlers, ECORE_EVENT_SYSTEM_TIMEDATE_CHANGED, _clock_time_update, NULL);
-
    return ECORE_CALLBACK_PASS_ON;
 }
 
@@ -262,6 +253,15 @@ time_init(void)
      clock_tz2_monitor = eio_monitor_add("/etc/timezone");
    if (ecore_file_is_dir("/etc"))
      clock_tzetc_monitor = eio_monitor_add("/etc");
+
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_ERROR, _clock_eio_error, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_CREATED, _clock_eio_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_MODIFIED, _clock_eio_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_FILE_DELETED, _clock_eio_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_SELF_DELETED, _clock_eio_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, EIO_MONITOR_SELF_RENAME, _clock_eio_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, E_EVENT_SYS_RESUME, _clock_time_update, NULL);
+    E_LIST_HANDLER_APPEND(clock_eio_handlers, ECORE_EVENT_SYSTEM_TIMEDATE_CHANGED, _clock_time_update, NULL);
    _update_today_timer(NULL);
 }
 

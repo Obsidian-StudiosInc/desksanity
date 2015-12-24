@@ -60,12 +60,14 @@ struct _Instance
    Config_Item     *cfg;
 };
 
-void e_int_config_clock_module(Evas_Object *parent, Config_Item *ci);
+EINTERN Evas_Object *config_clock(Evas_Object *g);
 void e_int_clock_instances_redo(Eina_Bool all);
 
 EINTERN void time_daynames_clear(Instance *inst);
 EINTERN void time_string_format(Instance *inst, char *buf, int bufsz);
 EINTERN void time_instance_update(Instance *inst);
+EINTERN void time_init(void);
+EINTERN void time_shutdown(void);
 
 EINTERN Evas_Object *clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient);
 EINTERN void clock_popup_new(Instance *inst);
