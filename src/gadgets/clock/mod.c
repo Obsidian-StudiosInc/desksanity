@@ -14,7 +14,10 @@ _e_mod_action_cb(E_Object *obj EINA_UNUSED, const char *params, ...)
 
    EINA_LIST_FOREACH(clock_instances, l, inst)
      if (inst->popup)
-       clock_popup_free(inst);
+       {
+          elm_ctxpopup_dismiss(inst->popup);
+          inst->popup = NULL;
+       }
      else
        clock_popup_new(inst);
 }

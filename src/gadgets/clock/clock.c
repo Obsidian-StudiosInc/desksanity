@@ -72,69 +72,82 @@ static void
 _clock_settings_cb(void *d1, void *d2 EINA_UNUSED)
 {
    Instance *inst = d1;
-   //e_int_config_clock_module(NULL, inst->cfg);
-   e_object_del(E_OBJECT(inst->popup));
+
+   z_gadget_configure(inst->o_clock);
+   elm_ctxpopup_dismiss(inst->popup);
    inst->popup = NULL;
-   inst->o_popclock = NULL;
 }
 
 static void
-_popclock_del_cb(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *info EINA_UNUSED)
+_clock_popup_dismissed(void *data EINA_UNUSED, Evas_Object *obj, void *info EINA_UNUSED)
 {
-   Instance *inst = data;
-   if (inst->o_popclock == obj)
-     {
-        inst->o_popclock = NULL;
-     }
+   evas_object_del(obj);
+}
+
+static void
+_clock_edje_init(Instance *inst, Evas_Object *o)
+{
+   char todaystr[128];
+
+   time_string_format(inst, todaystr, sizeof(todaystr) - 1);
+   if (inst->cfg->digital_clock)
+     e_theme_edje_object_set(o, "base/theme/modules/clock",
+                             "e/modules/clock/digital");
+   else
+     e_theme_edje_object_set(o, "base/theme/modules/clock",
+                             "e/modules/clock/main");
+   if (inst->cfg->show_date)
+     elm_layout_signal_emit(o, "e,state,date,on", "e");
+   else
+     elm_layout_signal_emit(o, "e,state,date,off", "e");
+   if (inst->cfg->digital_24h)
+     elm_layout_signal_emit(o, "e,state,24h,on", "e");
+   else
+     elm_layout_signal_emit(o, "e,state,24h,off", "e");
+   if (inst->cfg->show_seconds)
+     elm_layout_signal_emit(o, "e,state,seconds,on", "e");
+   else
+     elm_layout_signal_emit(o, "e,state,seconds,off", "e");
+
+   elm_object_part_text_set(o, "e.text.today", todaystr);
+   edje_object_message_signal_process(elm_layout_edje_get(o));
+}
+
+static void
+_clock_popup_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+  Instance *inst = data;
+
+  if (obj != inst->popup) return;
+  inst->o_table = inst->o_popclock = inst->o_cal = NULL;
 }
 
 EINTERN void
 clock_popup_new(Instance *inst)
 {
-/*
    Evas *evas;
    Evas_Object *o, *oi;
-   char todaystr[128];
 
    if (inst->popup) return;
-
-   time_string_format(inst, todaystr, sizeof(todaystr) - 1);
 
    inst->madj = 0;
 
    time_instance_update(inst);
 
-   inst->popup = e_gadcon_popup_new(inst->gcc, 0);
+   inst->popup = elm_ctxpopup_add(inst->o_clock);
+   elm_object_style_set(inst->popup, "noblock");
+   evas_object_smart_callback_add(inst->popup, "dismissed", _clock_popup_dismissed, inst);
+   evas_object_event_callback_add(inst->popup, EVAS_CALLBACK_DEL, _clock_popup_del, inst);
    evas = e_comp->evas;
 
-   inst->o_table = elm_table_add(e_comp->elm);
+   inst->o_table = elm_table_add(inst->popup);
 
    oi = elm_layout_add(inst->o_table);
    inst->o_popclock = oi;
-   evas_object_size_hint_weight_set(oi, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-   evas_object_size_hint_align_set(oi, EVAS_HINT_FILL, EVAS_HINT_FILL);
-   evas_object_event_callback_add(oi, EVAS_CALLBACK_DEL, _popclock_del_cb, inst);
+   E_EXPAND(oi);
+   E_FILL(oi);
 
-   if (inst->cfg->digital_clock)
-     e_theme_edje_object_set(oi, "base/theme/modules/clock",
-                             "e/modules/clock/digital");
-   else
-     e_theme_edje_object_set(oi, "base/theme/modules/clock",
-                             "e/modules/clock/main");
-   if (inst->cfg->show_date)
-     elm_object_signal_emit(oi, "e,state,date,on", "e");
-   else
-     elm_object_signal_emit(oi, "e,state,date,off", "e");
-   if (inst->cfg->digital_24h)
-     elm_object_signal_emit(oi, "e,state,24h,on", "e");
-   else
-     elm_object_signal_emit(oi, "e,state,24h,off", "e");
-   if (inst->cfg->show_seconds)
-     elm_object_signal_emit(oi, "e,state,seconds,on", "e");
-   else
-     elm_object_signal_emit(oi, "e,state,seconds,off", "e");
-
-   elm_object_part_text_set(oi, "e.text.today", todaystr);
+   _clock_edje_init(inst, oi);
 
    elm_layout_sizing_eval(oi);
    elm_table_pack(inst->o_table, oi, 0, 0, 1, 1);
@@ -164,10 +177,36 @@ clock_popup_new(Instance *inst)
    elm_table_pack(inst->o_table, oi, 0, 1, 1, 1);
    evas_object_show(oi);
 
-   evas_smart_objects_calculate(evas);
-   e_gadcon_popup_content_set(inst->popup, inst->o_table);
-   e_gadcon_popup_show(inst->popup);
-*/
+   elm_object_content_set(inst->popup, inst->o_table);
+   elm_ctxpopup_hover_parent_set(inst->popup, e_comp->elm);
+   evas_object_layer_set(inst->popup, evas_object_layer_get(inst->o_clock));
+   {
+      int x, y, w, h;
+      Z_Gadget_Site_Orient orient;
+      Z_Gadget_Site_Anchor an;
+      Evas_Object *site;
+
+      evas_object_geometry_get(inst->o_clock, &x, &y, &w, &h);
+      site = z_gadget_site_get(inst->o_clock);
+      orient = z_gadget_site_orient_get(site);
+      an = z_gadget_site_anchor_get(site);
+      if (an & Z_GADGET_SITE_ANCHOR_TOP)
+        y += h;
+      if (an & Z_GADGET_SITE_ANCHOR_LEFT)
+        x += w;
+      if (orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+        {
+           x += w / 2;
+           elm_ctxpopup_direction_priority_set(inst->popup, ELM_CTXPOPUP_DIRECTION_UP, ELM_CTXPOPUP_DIRECTION_DOWN, 0, 0);
+        }
+      else if (orient == Z_GADGET_SITE_ORIENT_VERTICAL)
+        {
+           y += h / 2;
+           elm_ctxpopup_direction_priority_set(inst->popup, ELM_CTXPOPUP_DIRECTION_RIGHT, ELM_CTXPOPUP_DIRECTION_LEFT, 0, 0);
+        }
+      evas_object_move(inst->popup, x, y);
+   }
+   evas_object_show(inst->popup);
 }
 
 static void
@@ -219,73 +258,18 @@ e_int_clock_instances_redo(Eina_Bool all)
 {
    Eina_List *l;
    Instance *inst;
-   char todaystr[128];
 
    EINA_LIST_FOREACH(clock_instances, l, inst)
      {
         Evas_Object *o = inst->o_clock;
 
          if ((!all) && (!inst->cfg->changed)) continue;
-        time_string_format(inst, todaystr, sizeof(todaystr) - 1);
-        if (inst->cfg->digital_clock)
-          e_theme_edje_object_set(o, "base/theme/modules/clock",
-                                  "e/modules/clock/digital");
-        else
-          e_theme_edje_object_set(o, "base/theme/modules/clock",
-                                  "e/modules/clock/main");
-        if (inst->cfg->show_date)
-          elm_layout_signal_emit(o, "e,state,date,on", "e");
-        else
-          elm_layout_signal_emit(o, "e,state,date,off", "e");
-        if (inst->cfg->digital_24h)
-          elm_layout_signal_emit(o, "e,state,24h,on", "e");
-        else
-          elm_layout_signal_emit(o, "e,state,24h,off", "e");
-        if (inst->cfg->show_seconds)
-          elm_layout_signal_emit(o, "e,state,seconds,on", "e");
-        else
-          elm_layout_signal_emit(o, "e,state,seconds,off", "e");
-
-        elm_object_part_text_set(o, "e.text.today", todaystr);
-        edje_object_message_signal_process(elm_layout_edje_get(o));
+         _clock_edje_init(inst, o);
         _eval_instance_size(inst);
         
         if (inst->o_popclock)
-          {
-             o = inst->o_popclock;
-
-             if (inst->cfg->digital_clock)
-               e_theme_edje_object_set(o, "base/theme/modules/clock",
-                                       "e/modules/clock/digital");
-             else
-               e_theme_edje_object_set(o, "base/theme/modules/clock",
-                                       "e/modules/clock/main");
-             if (inst->cfg->show_date)
-               edje_object_signal_emit(o, "e,state,date,on", "e");
-             else
-               edje_object_signal_emit(o, "e,state,date,off", "e");
-             if (inst->cfg->digital_24h)
-               edje_object_signal_emit(o, "e,state,24h,on", "e");
-             else
-               edje_object_signal_emit(o, "e,state,24h,off", "e");
-             if (inst->cfg->show_seconds)
-               edje_object_signal_emit(o, "e,state,seconds,on", "e");
-             else
-               edje_object_signal_emit(o, "e,state,seconds,off", "e");
-
-             edje_object_part_text_set(o, "e.text.today", todaystr);
-             edje_object_message_signal_process(o);
-          }
+          _clock_edje_init(inst, inst->o_popclock);
      }
-}
-
-
-EINTERN void
-clock_popup_free(Instance *inst)
-{
-   if (!inst->popup) return;
-   E_FREE_FUNC(inst->popup, e_object_del);
-   inst->o_popclock = NULL;
 }
 
 static void
@@ -305,35 +289,12 @@ _clock_cb_mouse_down(void *data, Evas *evas EINA_UNUSED, Evas_Object *obj EINA_U
 
    if (ev->button == 1)
      {
-        if (inst->popup) clock_popup_free(inst);
+        if (inst->popup)
+          {
+             elm_ctxpopup_dismiss(inst->popup);
+             inst->popup = NULL;
+          }
         else clock_popup_new(inst);
-     }
-   else if (ev->button == 3)
-     {
-#warning FIXME
-#if 0
-        E_Zone *zone;
-        E_Menu *m;
-        E_Menu_Item *mi;
-        int x, y;
-
-        zone = e_zone_current_get();
-
-        m = e_menu_new();
-
-        mi = e_menu_item_new(m);
-        e_menu_item_label_set(mi, _("Settings"));
-        e_util_menu_item_theme_icon_set(mi, "configure");
-        e_menu_item_callback_set(mi, _clock_menu_cb_cfg, inst);
-
-        m = e_gadcon_client_util_menu_items_append(inst->gcc, m, 0);
-
-        e_gadcon_canvas_zone_geometry_get(inst->gcc->gadcon, &x, &y, NULL, NULL);
-        e_menu_activate_mouse(m, zone, x + ev->output.x, y + ev->output.y,
-                              1, 1, E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
-        evas_event_feed_mouse_up(inst->gcc->gadcon->evas, ev->button,
-                                 EVAS_BUTTON_NONE, ev->timestamp, NULL);
-#endif
      }
 }
 
@@ -349,7 +310,7 @@ clock_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *e
    Instance *inst = data;
 
    clock_instances = eina_list_remove(clock_instances, inst);
-   clock_popup_free(inst);
+   evas_object_del(inst->popup);
    time_daynames_clear(inst);
    free(inst);
 }
@@ -410,37 +371,16 @@ clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient)
 {
    Evas_Object *o;
    Instance *inst;
-   char todaystr[128];
    const char *sig = NULL;
 
    inst = E_NEW(Instance, 1);
    inst->cfg = _conf_item_get(id);
 
-   time_string_format(inst, todaystr, sizeof(todaystr) - 1);
-   
-   o = elm_layout_add(parent);
+   inst->o_clock = o = elm_layout_add(parent);
    elm_layout_signal_callback_add(o, "e,state,sizing,changed", "*",
                                    _clock_sizing_changed_cb, inst);
-   if (inst->cfg->digital_clock)
-     e_theme_edje_object_set(o, "base/theme/modules/clock",
-                             "e/modules/clock/digital");
-   else
-     e_theme_edje_object_set(o, "base/theme/modules/clock",
-                             "e/modules/clock/main");
-   if (inst->cfg->show_date)
-     elm_layout_signal_emit(o, "e,state,date,on", "e");
-   else
-     elm_layout_signal_emit(o, "e,state,date,off", "e");
-   if (inst->cfg->digital_24h)
-     elm_layout_signal_emit(o, "e,state,24h,on", "e");
-   else
-     elm_layout_signal_emit(o, "e,state,24h,off", "e");
-   if (inst->cfg->show_seconds)
-     elm_layout_signal_emit(o, "e,state,seconds,on", "e");
-   else
-     elm_layout_signal_emit(o, "e,state,seconds,off", "e");
 
-   elm_object_part_text_set(o, "e.text.today", todaystr);
+   _clock_edje_init(inst, o);
 
    switch (orient)
      {
@@ -458,7 +398,6 @@ clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient)
 
    elm_layout_signal_emit(inst->o_clock, sig, "e");
 
-   inst->o_clock = o;
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, clock_del, inst);
    evas_object_smart_callback_add(parent, "gadget_added", _clock_gadget_added_cb, inst);
    evas_object_data_set(o, "clock", inst);

@@ -44,9 +44,8 @@ struct _Config_Item
 
 struct _Instance
 {
-   E_Gadcon_Client *gcc;
    Evas_Object     *o_clock, *o_table, *o_popclock, *o_cal;
-   E_Gadcon_Popup  *popup;
+   Evas_Object  *popup;
 
    int              madj;
 
@@ -71,7 +70,6 @@ EINTERN void time_shutdown(void);
 
 EINTERN Evas_Object *clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient);
 EINTERN void clock_popup_new(Instance *inst);
-EINTERN void clock_popup_free(Instance *inst);
 
 extern Config *clock_config;
 extern Eina_List *clock_instances;

@@ -662,15 +662,8 @@ _gadget_act_configure_object_del(void *data, Evas *e EINA_UNUSED, Evas_Object *o
 }
 
 static void
-_gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
+_gadget_configure(Z_Gadget_Config *zgc)
 {
-   Z_Gadget_Config *zgc;
-   Evas_Object *g;
-
-   if (obj->type != Z_GADGET_TYPE) return;
-
-   g = e_object_data_get(obj);
-   zgc = evas_object_data_get(g, "__z_gadget");
    if (!zgc->configure) return;
    if (zgc->cfg_object)
      {
@@ -681,6 +674,19 @@ _gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_E
    zgc->cfg_object = zgc->configure(zgc->gadget);
    if (!zgc->cfg_object) return;
    evas_object_event_callback_add(zgc->cfg_object, EVAS_CALLBACK_DEL, _gadget_act_configure_object_del, zgc);
+}
+
+static void
+_gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc;
+   Evas_Object *g;
+
+   if (obj->type != Z_GADGET_TYPE) return;
+
+   g = e_object_data_get(obj);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   _gadget_configure(zgc);
 }
 
 static Eina_Bool
@@ -867,6 +873,17 @@ z_gadget_configure_cb_set(Evas_Object *g, Z_Gadget_Configure_Cb cb)
    zgc = evas_object_data_get(g, "__z_gadget");
    EINA_SAFETY_ON_NULL_RETURN(zgc);
    zgc->configure = cb;
+}
+
+Z_API void
+z_gadget_configure(Evas_Object *g)
+{
+   Z_Gadget_Config *zgc;
+
+   EINA_SAFETY_ON_NULL_RETURN(g);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN(zgc);
+   _gadget_configure(zgc);
 }
 
 Z_API void
