@@ -1,3 +1,64 @@
+Release 1.1.0
+--------------------
+Highlights:
+      * Convert to Elementary widgets
+      * Greatly improve PiP UX
+      * Tweaks to Zoom effect
+      * Superkey binding for managing window focus
+
+
+Mike Blumenkrantz (44):
+      e_comp_get() -> e_comp
+      convert zoom to elm widgets
+      remove bad comp usage in pip
+      zsq
+      fix edje warnings
+      more elm conversions
+      bump e version req
+      make pip crop reset if user shift+clicks without moving
+      and null the clip pointer because this module is way too smart to crash
+      disallow pip manage action if no pips exist
+      update to latest api changes
+      more api updates
+      ignore/clean 'compile' file
+      maybe fix zoom animation geometries?
+      show clients before performing desk flip
+      fix zoom key actions
+      add scroller indicator for zoom effect
+      fix zoom focus rect sizing to be even on all sides
+      clip zoom client focus rect to clipper
+      make zoom focus rect more translucent when active
+      don't enable map for zoom client effect
+      make zoom effect more subtle when indicating which window is "active"
+      use color3 for setting OUTLINE color on zoom text
+      redo "active" signalling for zoom effect to be more easily themable
+      improve keyboard navigation for zoom effect
+      use bring_in for zoom keyboard navigation
+      disable maximize effect for x11 csd windows
+      force sizing of zoom effect tables before adding to layout
+      remove pip delete callback during pip free
+      make pip move/resize while clipped more accurate based on clip geometry
+      enable pip edit mode when creating a pip
+      add Super Ultimate Window Management binding under Desksanity actions
+      add multipress functionality for superkey
+      add handling for maintaining sticky windows with superkey
+      move to single makefile build
+      require E20+
+
+
+Release 1.0.3
+--------------------
+
+Mike Blumenkrantz (1):
+      use correct int size for ds effect iterating
+
+Release 1.0.2
+--------------------
+
+Mike Blumenkrantz (1):
+      reorder ds client iterator filter to catch override clients before ec->desk deref
+
+
 Release 1.0.1
 --------------------
 
@@ -5,4 +66,6 @@ Mike Blumenkrantz (3):
       raise client zoom obj on mouse in
       fix input regions on shaded clients after desk flip
       fix multiscreen zoom and current desks zoom
+
+
 
