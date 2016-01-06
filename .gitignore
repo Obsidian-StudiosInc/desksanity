@@ -51,3 +51,6 @@ src/.libs/
 src/Makefile
 src/Makefile.in
 stamp-h1
+.deps
+.libs
+.dirstamp
