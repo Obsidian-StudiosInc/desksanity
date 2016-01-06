@@ -23,6 +23,7 @@ typedef struct Z_Gadget_Site
    Z_Gadget_Site_Gravity gravity;
    Z_Gadget_Site_Orient orient;
    Z_Gadget_Site_Anchor anchor;
+   Z_Gadget_Style_Cb style_cb;
    Eina_List *gadgets;
    Eina_List *fixed_gadgets;
    int cur_size;
@@ -37,8 +38,15 @@ typedef struct Z_Gadget_Site
 struct Z_Gadget_Config
 {
    E_Object *e_obj_inherit; //list?
+   int id;
+   Evas_Object *display; //list?
    Evas_Object *gadget; //list?
-   unsigned int id;
+   struct
+   {
+      Evas_Object *obj;
+      int minw, minh;
+      Eina_Stringshare *name;
+   } style;
    Eina_Stringshare *type;
    Z_Gadget_Configure_Cb configure;
    Evas_Object *cfg_object;
@@ -73,7 +81,7 @@ _gadget_at_xy(Z_Gadget_Site *zgs, int x, int y, Z_Gadget_Config *exclude)
 
         if (!zgc->gadget) continue;
 
-        evas_object_geometry_get(zgc->gadget, &ox, &oy, &ow, &oh);
+        evas_object_geometry_get(zgc->display, &ox, &oy, &ow, &oh);
         if (E_INSIDE(x, y, ox + wx, oy + wy, ow, oh))
           {
              if (zgc == exclude) saved = zgc;
@@ -87,7 +95,7 @@ _gadget_at_xy(Z_Gadget_Site *zgs, int x, int y, Z_Gadget_Config *exclude)
 
         if (!zgc->gadget) continue;
 
-        evas_object_geometry_get(zgc->gadget, &ox, &oy, &ow, &oh);
+        evas_object_geometry_get(zgc->display, &ox, &oy, &ow, &oh);
         if (E_INSIDE(x, y, ox + wx, oy + wy, ow, oh))
           {
              if (zgc == exclude) saved = zgc;
@@ -127,7 +135,7 @@ _gravity_apply(Evas_Object *ly, Z_Gadget_Site_Gravity gravity)
 }
 
 static void
-_gadget_reparent(Z_Gadget_Site *zgs, Evas_Object *g)
+_gadget_reparent(Z_Gadget_Site *zgs, Z_Gadget_Config *zgc)
 {
    switch (zgs->gravity)
      {
@@ -136,11 +144,11 @@ _gadget_reparent(Z_Gadget_Site *zgs, Evas_Object *g)
         break;
       case Z_GADGET_SITE_GRAVITY_LEFT:
       case Z_GADGET_SITE_GRAVITY_TOP:
-        elm_box_pack_end(zgs->layout, g);
+        elm_box_pack_end(zgs->layout, zgc->display);
         break;
       default:
         /* right aligned: pack on left */
-          elm_box_pack_start(zgs->layout, g);
+          elm_box_pack_start(zgs->layout, zgc->display);
      }
 }
 
@@ -164,6 +172,7 @@ _gadget_object_free(E_Object *eobj)
    evas_object_smart_callback_call(zgc->site->layout, "gadget_removed", zgc->gadget);
    E_FREE_FUNC(zgc->gadget, evas_object_del);
    evas_object_del(zgc->cfg_object);
+   evas_object_del(zgc->style.obj);
    E_FREE(zgc->e_obj_inherit);
 }
 
@@ -176,6 +185,8 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
    int ax, ay;
 
    zgc = evas_object_data_get(g, "__z_gadget");
+   w -= zgc->style.minw;
+   h -= zgc->style.minh;
 
    evas_object_size_hint_min_get(g, &mnw, &mnh);
    evas_object_size_hint_max_get(g, &mxw, &mxh);
@@ -191,7 +202,7 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
         *hh = mnh, *ww = w;
         if (!(*hh)) *hh = *ww;
      }
-   if (zgc->site->orient && ax && ay)
+   if (aspect && ax && ay)
      {
         switch (aspect)
           {
@@ -208,6 +219,8 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
                *hh = (*ww * ay / ax);
           }
      }
+   *ww += zgc->style.minw;
+   *hh += zgc->style.minh;
    *ow = *ww, *oh = *hh;
    if ((!ax) && (!ay))
      {
@@ -215,7 +228,7 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
         if ((mxh >= 0) && (mxh < *oh)) *oh = mxh;
      }
 
-   evas_object_resize(g, *ow, *oh);
+   evas_object_resize(zgc->display, *ow, *oh);
 }
 
 static void
@@ -243,22 +256,24 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
+             _site_gadget_resize(zgc->gadget, w - (xx - x), h - (yy - y), &ww, &hh, &ow, &oh);
              if (IS_HORIZ(zgs->orient))
-               gx += (Evas_Coord)(((double)(ww - ow)) * 0.5);
-             else
-               gy += (Evas_Coord)(((double)(hh - oh)) * 0.5);
+               gx += (Evas_Coord)(((double)(ww - ow)) * 0.5),
+               gy += (h / 2) - (oh / 2);
+             else if (IS_VERT(zgs->orient))
+               gy += (Evas_Coord)(((double)(hh - oh)) * 0.5),
+               gx += (w / 2) - (ow / 2);
              if (zgc->over)
-               evas_object_stack_above(zgc->gadget, zgc->over->gadget);
+               evas_object_stack_above(zgc->display, zgc->over->gadget);
              if (zgs->orient && ((zgc->x > -1) || (zgc->y > -1)))
                {
                   if (IS_HORIZ(zgs->orient))
-                    evas_object_move(zgc->gadget, zgc->x * (double)w, gy);
+                    evas_object_move(zgc->display, zgc->x * (double)w, gy);
                   else
-                    evas_object_move(zgc->gadget, gx, zgc->y * (double)h);
+                    evas_object_move(zgc->display, gx, zgc->y * (double)h);
                }
              else
-               evas_object_move(zgc->gadget, gx, gy);
+               evas_object_move(zgc->display, gx, gy);
              if (IS_HORIZ(zgs->orient))
                xx += ow;
              else
@@ -278,12 +293,14 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
+             _site_gadget_resize(zgc->gadget, w - (xx - x), h - (yy - y), &ww, &hh, &ow, &oh);
              if (IS_HORIZ(zgs->orient))
-               gx -= (Evas_Coord)(((double)(ww - ow)) * 0.5) + ow;
+               gx -= (Evas_Coord)(((double)(ww - ow)) * 0.5) + ow,
+               gy += (h / 2) - (oh / 2);
              else
-               gy -= (Evas_Coord)(((double)(hh - oh)) * 0.5) + oh;
-             evas_object_move(zgc->gadget, gx, gy);
+               gy -= (Evas_Coord)(((double)(hh - oh)) * 0.5) + oh,
+               gx += (w / 2) - (ow / 2);
+             evas_object_move(zgc->display, gx, gy);
              if (IS_HORIZ(zgs->orient))
                xx -= ow;
              else
@@ -304,7 +321,7 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
         Evas_Coord gx = xx, gy = yy;
         int ww, hh, ow, oh;
 
-        _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
+        _site_gadget_resize(zgc->gadget, w - (px - x), h - (py - y), &ww, &hh, &ow, &oh);
         if (IS_HORIZ(zgc->site->orient))
           {
              gx = ((1 - ax) * xx) + (zgc->x * (w - zgs->cur_size));
@@ -333,7 +350,7 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              if (gy > py) gy = py;
           }
 
-        evas_object_move(zgc->gadget, gx, gy);
+        evas_object_move(zgc->display, gx, gy);
         if (IS_HORIZ(zgs->orient))
           px = gx + (-ax * ow);
         else
@@ -363,7 +380,7 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
    mx = ev->x;
    my = ev->y;
 
-   evas_object_geometry_get(zgc->gadget, &ox, &oy, &ow, &oh);
+   evas_object_geometry_get(zgc->display, &ox, &oy, &ow, &oh);
    ox += wx, oy += wy;
 
    rw = &gw;
@@ -720,7 +737,7 @@ _site_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_
           zgs->mouse_up_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_BUTTON_UP, (Ecore_Event_Handler_Cb)_site_mouse_up, zgs);
 
 
-        evas_object_geometry_get(zgc->gadget, &x, &y, NULL, NULL);
+        evas_object_geometry_get(zgc->display, &x, &y, NULL, NULL);
         zgc->offset.x = ev->canvas.x - x;
         zgc->offset.y = ev->canvas.y - y;
      }
@@ -786,11 +803,12 @@ z_gadget_site_anchor_get(Evas_Object *obj)
 }
 
 Z_API void
-z_gadget_site_anchor_set(Evas_Object *obj, Z_Gadget_Site_Anchor an)
+z_gadget_site_owner_set(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb)
 {
    ZGS_GET(obj);
 
    zgs->anchor = an;
+   zgs->style_cb = cb;
    evas_object_smart_callback_call(obj, "gadget_anchor", NULL);
 }
 
@@ -815,7 +833,7 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    Z_Gadget_Create_Cb cb;
    Evas_Object *g;
    Z_Gadget_Config *zgc;
-   unsigned int id = 0;
+   int id = 0;
 
    EINA_SAFETY_ON_NULL_RETURN(gadget_types);
    ZGS_GET(obj);
@@ -836,21 +854,23 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    e_object_data_set(zgc->e_obj_inherit, g);
    zgc->id = id;
    zgc->type = eina_stringshare_add(buf);
-   zgc->gadget = g;
+   zgc->gadget = zgc->display = g;
    zgc->x = -1;
    zgc->y = -1;
    zgc->site = zgs;
    evas_object_data_set(g, "__z_gadget", zgc);
+   if (zgs->style_cb)
+   zgs->style_cb(g, NULL);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    zgs->gadgets = eina_list_append(zgs->gadgets, zgc);
-   _gadget_reparent(zgs, g);
+   _gadget_reparent(zgs, zgc);
    evas_object_raise(zgs->events);
 
    evas_object_smart_callback_call(obj, "gadget_added", g);
    evas_object_smart_callback_call(obj, "gadget_gravity", g);
 
-   evas_object_show(g);
+   evas_object_show(zgc->display);
 }
 
 Z_API Evas_Object *
@@ -914,4 +934,25 @@ z_gadget_type_del(const char *type)
           if (eina_streq(buf, zgc->type))
             evas_object_del(zgc->gadget);
      }
+}
+
+Z_API Evas_Object *
+z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style)
+{
+   Z_Gadget_Config *zgc;
+   Evas_Object *prev;
+
+   EINA_SAFETY_ON_NULL_RETURN_VAL(g, NULL);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN_VAL(zgc, NULL);
+
+   prev = zgc->style.obj;
+   zgc->style.obj = style;
+   zgc->display = style ?: zgc->gadget;
+   if (!style) return prev;
+
+   elm_layout_sizing_eval(style);
+   evas_object_smart_calculate(style);
+   evas_object_size_hint_min_get(style, &zgc->style.minw, &zgc->style.minh);
+   return prev;
 }

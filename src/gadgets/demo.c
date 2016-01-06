@@ -1,12 +1,28 @@
 #include "gadget.h"
 
-EINTERN Evas_Object *start_create(Evas_Object *parent, unsigned int *id EINA_UNUSED, Z_Gadget_Site_Orient orient);;
+EINTERN Evas_Object *start_create(Evas_Object *parent, int *id EINA_UNUSED, Z_Gadget_Site_Orient orient);;
 
 EINTERN void clock_init(void);
 EINTERN void clock_shutdown(void);
+EINTERN void ibar_init(void);
 
 static Evas_Object *shelf;
 static Evas_Object *site;
+
+static void
+_demo_style(Evas_Object *g, Eina_Stringshare *name)
+{
+   Evas_Object *ly;
+   static int n;
+
+   ly = elm_layout_add(site);
+   if (n++ % 2)
+     e_theme_edje_object_set(ly, NULL, "e/shelf/default/inset");
+   else
+     e_theme_edje_object_set(ly, NULL, "e/shelf/default/plain");
+   z_gadget_util_layout_style_init(g, ly);
+   elm_object_part_content_set(ly, "e.swallow.content", g);
+}
 
 EINTERN void
 gadget_demo(void)
@@ -18,12 +34,13 @@ gadget_demo(void)
    if (e_comp->w > 1200) return;
    z_gadget_type_add("Start", start_create);
    clock_init();
+   ibar_init();
 
    ly = elm_layout_add(e_comp->elm);
    e_theme_edje_object_set(ly, NULL, "e/shelf/default/base");
 
    site = z_gadget_site_add(ly, Z_GADGET_SITE_ORIENT_HORIZONTAL);
-   z_gadget_site_anchor_set(site, Z_GADGET_SITE_ANCHOR_TOP);
+   z_gadget_site_owner_set(site, Z_GADGET_SITE_ANCHOR_TOP, _demo_style);
    elm_object_part_content_set(ly, "e.swallow.content", site);
    elm_layout_signal_emit(ly, "e,state,orientation,top", "e");
    evas_object_geometry_set(ly, 0, 0, e_comp->w, 48);
@@ -38,4 +55,7 @@ gadget_demo(void)
 
    z_gadget_site_gadget_add(site, "Start");
    z_gadget_site_gadget_add(site, "Clock");
+   z_gadget_site_gadget_add(site, "IBar");
+   z_gadget_site_gadget_add(site, "Clock");
+   z_gadget_site_gadget_add(site, "IBar");
 }

@@ -219,7 +219,6 @@ _eval_instance_size(Instance *inst)
 
    if ((mw < 1) || (mh < 1))
      {
-        Evas_Coord ow, oh;
         Evas_Object *owner;
 
         owner = z_gadget_site_get(inst->o_clock);
@@ -236,12 +235,10 @@ _eval_instance_size(Instance *inst)
            default: break;
           }
 
-        evas_object_geometry_get(inst->o_clock, NULL, NULL, &ow, &oh);
         evas_object_resize(inst->o_clock, sw, sh);
         edje_object_message_signal_process(elm_layout_edje_get(inst->o_clock));
 
         edje_object_parts_extends_calc(elm_layout_edje_get(inst->o_clock), NULL, NULL, &mw, &mh);
-        evas_object_resize(inst->o_clock, ow, oh);
      }
 
    if (mw < 4) mw = 4;
@@ -329,7 +326,7 @@ _gc_icon(const E_Gadcon_Client_Class *client_class EINA_UNUSED, Evas *evas)
 }
 
 static Config_Item *
-_conf_item_get(unsigned int *id)
+_conf_item_get(int *id)
 {
    Config_Item *ci;
    Eina_List *l;
@@ -367,7 +364,7 @@ _clock_gadget_added_cb(void *data, Evas_Object *obj, void *event_info EINA_UNUSE
 }
 
 EINTERN Evas_Object *
-clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient)
+clock_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient)
 {
    Evas_Object *o;
    Instance *inst;

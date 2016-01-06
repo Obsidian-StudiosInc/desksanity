@@ -27,7 +27,7 @@ struct _Config
 
 struct _Config_Item
 {
-  unsigned int id;
+  int id;
   struct {
       int start, len; // 0->6 0 == sun, 6 == sat, number of days
    } weekend;
@@ -68,7 +68,7 @@ EINTERN void time_instance_update(Instance *inst);
 EINTERN void time_init(void);
 EINTERN void time_shutdown(void);
 
-EINTERN Evas_Object *clock_create(Evas_Object *parent, unsigned int *id, Z_Gadget_Site_Orient orient);
+EINTERN Evas_Object *clock_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient);
 EINTERN void clock_popup_new(Instance *inst);
 
 extern Config *clock_config;
