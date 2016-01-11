@@ -665,4 +665,5 @@ collections {
          }
       }
    }
+#include "edc/all.edc"
 }

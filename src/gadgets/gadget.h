@@ -34,11 +34,11 @@ typedef enum
 
 typedef Evas_Object *(*Z_Gadget_Create_Cb)(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient);
 typedef Evas_Object *(*Z_Gadget_Configure_Cb)(Evas_Object *gadget);
-typedef void (*Z_Gadget_Style_Cb)(Evas_Object *gadget, Eina_Stringshare *name);
+typedef void (*Z_Gadget_Style_Cb)(Evas_Object *owner, Eina_Stringshare *name, Evas_Object *g);
 
 Z_API Evas_Object *z_gadget_site_add(Evas_Object *parent, Z_Gadget_Site_Orient orient);
 Z_API Z_Gadget_Site_Anchor z_gadget_site_anchor_get(Evas_Object *obj);
-Z_API void z_gadget_site_owner_set(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb);
+Z_API void z_gadget_site_owner_setup(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb);
 Z_API Z_Gadget_Site_Orient z_gadget_site_orient_get(Evas_Object *obj);
 Z_API Z_Gadget_Site_Gravity z_gadget_site_gravity_get(Evas_Object *obj);
 Z_API void z_gadget_site_gadget_add(Evas_Object *obj, const char *type);

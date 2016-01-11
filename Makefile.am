@@ -26,8 +26,8 @@ glow_top.png
 include src/Makefile.mk
 include src/gadgets/Makefile.mk
 
-e-module-desksanity.edj: e-module-desksanity.edc
-	$(EDJE_CC) -id $(top_srcdir) $< $@
+e-module-desksanity.edj: e-module-desksanity.edc edc/*edc
+	$(EDJE_CC) -id $(top_srcdir) -id $(top_srcdir)/edc $< $@
 
 clean-local:
 	 rm -rf *.edj module.desktop e_modules-desksanity.spec *~

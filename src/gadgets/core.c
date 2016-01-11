@@ -256,7 +256,7 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             _site_gadget_resize(zgc->gadget, w - (xx - x), h - (yy - y), &ww, &hh, &ow, &oh);
+             _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
              if (IS_HORIZ(zgs->orient))
                gx += (Evas_Coord)(((double)(ww - ow)) * 0.5),
                gy += (h / 2) - (oh / 2);
@@ -293,7 +293,7 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
              Evas_Coord gx = xx, gy = yy;
              int ww, hh, ow, oh;
 
-             _site_gadget_resize(zgc->gadget, w - (xx - x), h - (yy - y), &ww, &hh, &ow, &oh);
+             _site_gadget_resize(zgc->gadget, w, h, &ww, &hh, &ow, &oh);
              if (IS_HORIZ(zgs->orient))
                gx -= (Evas_Coord)(((double)(ww - ow)) * 0.5) + ow,
                gy += (h / 2) - (oh / 2);
@@ -312,9 +312,14 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
 
    if (IS_HORIZ(zgs->orient))
      zgs->cur_size = abs((ax * w) - px) - x;
-   else
+   else if (IS_VERT(zgs->orient))
      zgs->cur_size = abs((ay * h) - py) - y;
 
+   fprintf(stderr, "SITE: %dx%d\n", IS_HORIZ(zgs->orient) ? zgs->cur_size : w,
+     IS_VERT(zgs->orient) ? zgs->cur_size : h);
+   evas_object_size_hint_min_set(zgs->layout,
+     IS_HORIZ(zgs->orient) ? zgs->cur_size : w,
+     IS_VERT(zgs->orient) ? zgs->cur_size : h);
    /* do layout for fixed position gadgets after */
    EINA_LIST_REVERSE_FOREACH(zgs->fixed_gadgets, l, zgc)
      {
@@ -803,7 +808,7 @@ z_gadget_site_anchor_get(Evas_Object *obj)
 }
 
 Z_API void
-z_gadget_site_owner_set(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb)
+z_gadget_site_owner_setup(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb)
 {
    ZGS_GET(obj);
 
@@ -860,7 +865,7 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    zgc->site = zgs;
    evas_object_data_set(g, "__z_gadget", zgc);
    if (zgs->style_cb)
-   zgs->style_cb(g, NULL);
+     zgs->style_cb(elm_object_parent_widget_get(zgs->layout), NULL, g);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    zgs->gadgets = eina_list_append(zgs->gadgets, zgc);

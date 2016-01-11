@@ -2,6 +2,8 @@ AM_CPPFLAGS += \
 -Isrc/gadgets
 
 module_la_SOURCES += \
+src/gadgets/bryce.c \
+src/gadgets/bryce.h \
 src/gadgets/core.c \
 src/gadgets/demo.c \
 src/gadgets/gadget.h \
