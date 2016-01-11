@@ -20,6 +20,7 @@
 #endif
 
 #define N_(str) (str)
+#define _(str) (str)
 
 #define MOD_CONFIG_FILE_EPOCH 0
 #define MOD_CONFIG_FILE_GENERATION 1

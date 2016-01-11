@@ -51,6 +51,7 @@ struct Z_Gadget_Config
    Z_Gadget_Configure_Cb configure;
    Evas_Object *cfg_object;
    Z_Gadget_Site *site;
+   E_Menu *menu;
 
    double x, y; //fixed % positioning
    Evas_Point offset; //offset from mouse down
@@ -64,6 +65,7 @@ static Eina_List *sites;
 
 static E_Action *move_act;
 static E_Action *configure_act;
+static E_Action *menu_act;
 
 static Z_Gadget_Config *
 _gadget_at_xy(Z_Gadget_Site *zgs, int x, int y, Z_Gadget_Config *exclude)
@@ -232,6 +234,16 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
 }
 
 static void
+_site_move(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   int x, y, w, h;
+   Z_Gadget_Site *zgs = data;
+
+   evas_object_geometry_get(obj, &x, &y, &w, &h);
+   evas_object_geometry_set(zgs->events, x, y, w, h);
+}
+
+static void
 _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
 {
    Z_Gadget_Site *zgs = data;
@@ -315,8 +327,6 @@ _site_layout(Evas_Object *o, Evas_Object_Box_Data *priv EINA_UNUSED, void *data)
    else if (IS_VERT(zgs->orient))
      zgs->cur_size = abs((ay * h) - py) - y;
 
-   fprintf(stderr, "SITE: %dx%d\n", IS_HORIZ(zgs->orient) ? zgs->cur_size : w,
-     IS_VERT(zgs->orient) ? zgs->cur_size : h);
    evas_object_size_hint_min_set(zgs->layout,
      IS_HORIZ(zgs->orient) ? zgs->cur_size : w,
      IS_VERT(zgs->orient) ? zgs->cur_size : h);
@@ -711,6 +721,130 @@ _gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_E
    _gadget_configure(zgc);
 }
 
+static void
+_gadget_menu_remove(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc = data;
+
+   zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+   evas_object_del(zgc->gadget);
+}
+
+static void
+_gadget_menu_configure(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   _gadget_configure(data);
+}
+
+static void
+_gadget_style_menu_item_del(void *mi)
+{
+   eina_stringshare_del(e_object_data_get(mi));
+}
+
+static void
+_gadget_menu_style(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
+{
+   Z_Gadget_Config *zgc = data;
+   Eina_Stringshare *style = e_object_data_get(E_OBJECT(mi));
+
+   if (zgc->site->style_cb)
+     zgc->site->style_cb(zgc->site->layout, style, zgc->gadget);
+}
+
+static void
+_gadget_act_menu(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev)
+{
+   Z_Gadget_Config *zgc;
+   Evas_Object *g;
+   E_Menu_Item *mi;
+   E_Menu *subm;
+   int x, y;
+
+   if (obj->type != Z_GADGET_TYPE) return;
+
+   g = e_object_data_get(obj);
+   zgc = evas_object_data_get(g, "__z_gadget");
+
+   zgc->menu = e_menu_new();
+   evas_object_smart_callback_call(g, "gadget_menu", zgc->menu);
+   if (zgc->configure)
+     {
+        mi = e_menu_item_new(zgc->menu);
+        e_menu_item_label_set(mi, _("Settings"));
+        e_util_menu_item_theme_icon_set(mi, "configure");
+        e_menu_item_callback_set(mi, _gadget_menu_configure, zgc);
+     }
+   if (zgc->menu->items)
+     {
+        mi = e_menu_item_new(zgc->menu);
+        e_menu_item_separator_set(mi, 1);
+     }
+   subm = e_menu_new();
+   evas_object_smart_callback_call(zgc->site->layout, "gadget_style_menu", subm);
+   if (e_object_data_get(E_OBJECT(subm)))
+     {
+        Eina_List *styles = e_object_data_get(E_OBJECT(subm));
+        Eina_Stringshare *style;
+
+        mi = e_menu_item_new(zgc->menu);
+        e_menu_item_label_set(mi, _("Look"));
+        e_util_menu_item_theme_icon_set(mi, "preferences-look");
+        e_menu_item_submenu_set(mi, subm);
+        e_object_unref(E_OBJECT(subm));
+
+        EINA_LIST_FREE(styles, style)
+          {
+             char buf[1024];
+
+             if (eina_streq(style, "base"))
+               {
+                  eina_stringshare_del(style);
+                  continue;
+               }
+             mi = e_menu_item_new(subm);
+             strncpy(buf, style, sizeof(buf) - 1);
+             buf[0] = toupper(buf[0]);
+             e_menu_item_label_set(mi, buf);
+             snprintf(buf, sizeof(buf), "enlightenment/%s", style);
+             e_util_menu_item_theme_icon_set(mi, buf);
+             e_menu_item_radio_group_set(mi, 1);
+             e_menu_item_radio_set(mi, 1);
+             e_menu_item_toggle_set(mi, style == zgc->style.name);
+             e_menu_item_disabled_set(mi, mi->toggle);
+             e_object_data_set(E_OBJECT(mi), style);
+             E_OBJECT_DEL_SET(mi, _gadget_style_menu_item_del);
+             e_menu_item_callback_set(mi, _gadget_menu_style, zgc);
+          }
+     }
+   else
+     e_object_del(E_OBJECT(subm));
+
+   mi = e_menu_item_new(zgc->menu);
+   e_menu_item_label_set(mi, _("Remove"));
+   e_util_menu_item_theme_icon_set(mi, "list-remove");
+   e_menu_item_callback_set(mi, _gadget_menu_remove, zgc);
+
+   subm = e_menu_new();
+   evas_object_smart_callback_call(zgc->site->layout, "gadget_owner_menu", subm);
+   if (subm->items)
+     {
+        mi = e_menu_item_new(zgc->menu);
+        e_menu_item_label_set(mi, _("Look"));
+        e_util_menu_item_theme_icon_set(mi, "preferences-look");
+        e_menu_item_submenu_set(mi, subm);
+        e_object_unref(E_OBJECT(subm));
+     }
+   else
+     e_object_del(E_OBJECT(subm));
+   evas_pointer_canvas_xy_get(e_comp->evas, &x, &y);
+   e_menu_activate_mouse(zgc->menu,
+                         e_zone_current_get(),
+                         x, y, 1, 1,
+                         E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
+   evas_object_smart_callback_call(zgc->site->layout, "gadget_popup", zgc->menu->comp_object);
+}
+
 static Eina_Bool
 _site_mouse_up(Z_Gadget_Site *zgs, int t EINA_UNUSED, Ecore_Event_Mouse_Button *ev)
 {
@@ -729,10 +863,12 @@ _site_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_
    Z_Gadget_Site *zgs = data;
    Evas_Event_Mouse_Down *ev = event_info;
    Z_Gadget_Config *zgc;
+   E_Action *act;
 
    zgc = _gadget_at_xy(zgs, ev->output.x, ev->output.y, NULL);
    if (!zgc) return;
-   if (e_bindings_mouse_down_evas_event_handle(E_BINDING_CONTEXT_ANY, zgc->e_obj_inherit, event_info))
+   act = e_bindings_mouse_down_evas_event_handle(E_BINDING_CONTEXT_ANY, zgc->e_obj_inherit, event_info);
+   if (act && act->func.end_mouse)
      {
         int x, y;
 
@@ -773,6 +909,7 @@ z_gadget_site_add(Evas_Object *parent, Z_Gadget_Site_Orient orient)
    elm_box_layout_set(zgs->layout, _site_layout, zgs, NULL);
 
    zgs->events = evas_object_rectangle_add(evas_object_evas_get(parent));
+   evas_object_event_callback_add(zgs->layout, EVAS_CALLBACK_MOVE, _site_move, zgs);
    evas_object_pointer_mode_set(zgs->events, EVAS_OBJECT_POINTER_MODE_NOGRAB);
    evas_object_smart_member_add(zgs->events, zgs->layout);
    evas_object_color_set(zgs->events, 0, 0, 0, 0);
@@ -794,6 +931,10 @@ z_gadget_site_add(Evas_Object *parent, Z_Gadget_Site_Orient orient)
         configure_act = e_action_add("gadget_configure");
         e_action_predef_name_set(D_("Gadgets"), D_("Configure gadget"), "gadget_configure", NULL, NULL, 0);
         configure_act->func.go_mouse = _gadget_act_configure;
+
+        menu_act = e_action_add("gadget_menu");
+        e_action_predef_name_set(D_("Gadgets"), D_("Gadget menu"), "gadget_menu", NULL, NULL, 0);
+        menu_act->func.go_mouse = _gadget_act_menu;
      }
 
    return zgs->layout;
@@ -865,7 +1006,7 @@ z_gadget_site_gadget_add(Evas_Object *obj, const char *type)
    zgc->site = zgs;
    evas_object_data_set(g, "__z_gadget", zgc);
    if (zgs->style_cb)
-     zgs->style_cb(elm_object_parent_widget_get(zgs->layout), NULL, g);
+     zgs->style_cb(zgs->layout, NULL, g);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    zgs->gadgets = eina_list_append(zgs->gadgets, zgc);
@@ -946,6 +1087,7 @@ z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *prev;
+   const char *grp;
 
    EINA_SAFETY_ON_NULL_RETURN_VAL(g, NULL);
    zgc = evas_object_data_get(g, "__z_gadget");
@@ -953,11 +1095,23 @@ z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style)
 
    prev = zgc->style.obj;
    zgc->style.obj = style;
+   if (style)
+     {
+        elm_layout_file_get(style, NULL, &grp);
+        eina_stringshare_replace(&zgc->style.name, strrchr(grp, '/') + 1);
+     }
+   else
+     eina_stringshare_replace(&zgc->style.name, NULL);
    zgc->display = style ?: zgc->gadget;
+   elm_box_pack_before(zgc->site->layout, zgc->display, prev ?: zgc->gadget);
+   if (prev)
+     elm_box_unpack(zgc->site->layout, prev);
+   evas_object_raise(zgc->site->events);
    if (!style) return prev;
 
    elm_layout_sizing_eval(style);
    evas_object_smart_calculate(style);
    evas_object_size_hint_min_get(style, &zgc->style.minw, &zgc->style.minh);
+   evas_object_show(style);
    return prev;
 }
