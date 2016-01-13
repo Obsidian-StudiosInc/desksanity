@@ -41,16 +41,23 @@ Z_API Z_Gadget_Site_Anchor z_gadget_site_anchor_get(Evas_Object *obj);
 Z_API void z_gadget_site_owner_setup(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb);
 Z_API Z_Gadget_Site_Orient z_gadget_site_orient_get(Evas_Object *obj);
 Z_API Z_Gadget_Site_Gravity z_gadget_site_gravity_get(Evas_Object *obj);
-Z_API void z_gadget_site_gadget_add(Evas_Object *obj, const char *type);
+Z_API void z_gadget_site_gravity_set(Evas_Object *obj, Z_Gadget_Site_Gravity gravity);
+Z_API void z_gadget_site_gadget_add(Evas_Object *obj, const char *type, Eina_Bool demo);
+Z_API Eina_List *z_gadget_site_gadgets_list(Evas_Object *obj);
 
 
 Z_API void z_gadget_configure_cb_set(Evas_Object *g, Z_Gadget_Configure_Cb cb);
 Z_API void z_gadget_configure(Evas_Object *g);
+Z_API Eina_Bool z_gadget_has_wizard(Evas_Object *g);
 Z_API Evas_Object *z_gadget_site_get(Evas_Object *g);
+Z_API Eina_Stringshare *z_gadget_type_get(Evas_Object *g);
 
 Z_API void z_gadget_type_add(const char *type, Z_Gadget_Create_Cb callback);
 Z_API void z_gadget_type_del(const char *type);
+Z_API Eina_Iterator *z_gadget_type_iterator_get(void);
 
 Z_API Evas_Object *z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style);
 
+
+Z_API Evas_Object *z_gadget_editor_add(Evas_Object *parent, Evas_Object *site);
 #endif

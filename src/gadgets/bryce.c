@@ -194,12 +194,18 @@ _bryce_autohide_show(Bryce *b)
 }
 
 static void
+_bryce_autohide_hide(Bryce *b)
+{
+   if (!b->autohide_blocked)
+     b->autohide_timer = ecore_timer_add(1.0, (Ecore_Task_Cb)_bryce_autohide_timeout, b);
+}
+
+static void
 _bryce_autohide_mouse_out(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Bryce *b = data;
 
-   if (!b->autohide_blocked)
-     b->autohide_timer = ecore_timer_add(1.0, (Ecore_Task_Cb)_bryce_autohide_timeout, b);
+   _bryce_autohide_hide(b);
    b->mouse_in = 0;
 }
 
@@ -280,20 +286,72 @@ _bryce_style_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 }
 
 static void
-_bryce_owner_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+_bryce_gadgets_menu_close(void *data, Evas_Object *obj)
 {
    Bryce *b = data;
+
+   b->autohide_blocked--;
+   evas_object_layer_set(b->bryce, b->layer);
+   evas_object_hide(obj);
+   evas_object_del(obj);
+   if (!b->mouse_in)
+     _bryce_autohide_hide(b);
+}
+
+static Eina_Bool
+_bryce_gadgets_menu_key()
+{
+   return EINA_TRUE;
 }
 
 static void
-_bryce_popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+_bryce_gadgets_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   Bryce *b = data;
+   Evas_Object *editor, *comp_object;
+   int w, h;
+
+   b->autohide_blocked++;
+   editor = z_gadget_editor_add(e_comp->elm, b->site);
+   comp_object = e_comp_object_util_add(editor, E_COMP_OBJECT_TYPE_POPUP);
+   evas_object_resize(comp_object, 300 * e_scale, 300 * e_scale);
+   e_comp_object_util_center(comp_object);
+   evas_object_layer_set(comp_object, E_LAYER_POPUP);
+   evas_object_show(comp_object);
+   evas_object_layer_set(b->bryce, E_LAYER_POPUP);
+   evas_object_size_hint_min_get(editor, &w, &h);
+   evas_object_resize(comp_object, 300 * e_scale, h * e_scale);
+   e_comp_object_util_center(comp_object);
+   e_comp_object_util_autoclose(comp_object, _bryce_gadgets_menu_close, _bryce_gadgets_menu_key, b);
+}
+
+static void
+_bryce_owner_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   Bryce *b = data;
+   E_Menu_Item *mi = event_info;
+   E_Menu *subm;
+
+   e_menu_item_label_set(mi, "Bryce");
+
+   subm = e_menu_new();
+   e_menu_item_submenu_set(mi, subm);
+   e_object_unref(E_OBJECT(subm));
+
+   mi = e_menu_item_new(subm);
+   e_menu_item_label_set(mi, "Gadgets");
+   e_menu_item_callback_set(mi, _bryce_gadgets_menu, b);
+}
+
+static void
+_bryce_popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Bryce *b = data;
 
    b->autohide_blocked--;
    if (!b->autohide) return;
    if (!b->mouse_in)
-     b->autohide_timer = ecore_timer_add(1.0, (Ecore_Task_Cb)_bryce_autohide_timeout, b);
+     _bryce_autohide_hide(b);
 }
 
 static void
@@ -404,7 +462,7 @@ z_bryce_autohide_set(Evas_Object *bryce, Eina_Bool set)
         evas_object_geometry_set(b->autohide_event, x, y, w, h);
         evas_object_color_set(b->autohide_event, 0, 0, 0, 0);
         evas_object_repeat_events_set(b->autohide_event, 1);
-        evas_object_layer_set(b->autohide_event, E_LAYER_POPUP);
+        evas_object_layer_set(b->autohide_event, E_LAYER_POPUP + 1);
         evas_object_show(b->autohide_event);
         evas_object_event_callback_add(b->autohide_event, EVAS_CALLBACK_MOUSE_IN, _bryce_autohide_mouse_in, b);
         evas_object_event_callback_add(b->autohide_event, EVAS_CALLBACK_MOUSE_OUT, _bryce_autohide_mouse_out, b);
@@ -412,7 +470,7 @@ z_bryce_autohide_set(Evas_Object *bryce, Eina_Bool set)
         evas_object_event_callback_add(bryce, EVAS_CALLBACK_RESIZE, _bryce_autohide_moveresize, b);
         ecore_evas_pointer_xy_get(e_comp->ee, &x, &y);
         if (!E_INSIDE(x, y, b->x, b->y, w, h))
-          b->autohide_timer = ecore_timer_add(1.0, (Ecore_Task_Cb)_bryce_autohide_timeout, b);
+          _bryce_autohide_hide(b);
      }
    else
      {

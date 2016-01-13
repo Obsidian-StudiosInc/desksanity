@@ -5,6 +5,7 @@ module_la_SOURCES += \
 src/gadgets/bryce.c \
 src/gadgets/bryce.h \
 src/gadgets/core.c \
+src/gadgets/site_config.c \
 src/gadgets/demo.c \
 src/gadgets/gadget.h \
 src/gadgets/start/start.c \

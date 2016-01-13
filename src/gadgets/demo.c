@@ -22,9 +22,9 @@ gadget_demo(void)
    b = z_bryce_add(e_comp->elm);
    site = z_bryce_site_get(b);
 
-   z_gadget_site_gadget_add(site, "Start");
-   z_gadget_site_gadget_add(site, "Clock");
-   z_gadget_site_gadget_add(site, "IBar");
+   z_gadget_site_gadget_add(site, "Start", 0);
+   z_gadget_site_gadget_add(site, "Clock", 0);
+   z_gadget_site_gadget_add(site, "IBar", 0);
    z_bryce_autosize_set(b, 1);
    z_bryce_autohide_set(b, 1);
 }
