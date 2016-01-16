@@ -21,6 +21,8 @@ static void
 _editor_pointer_site_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    free(data);
+   pointer_site = NULL;
+   E_FREE_LIST(handlers, ecore_event_handler_del);
 }
 
 static void
@@ -36,12 +38,15 @@ _editor_site_hints(void *data EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj
 static Eina_Bool
 _editor_pointer_button(Gadget_Item *active, int t EINA_UNUSED, Ecore_Event_Mouse_Button *ev)
 {
-   if (ev->buttons == 1)
+   int x, y, w, h;
+
+   evas_object_geometry_get(active->site, &x, &y, &w, &h);
+   if ((ev->buttons == 1) && E_INSIDE(ev->x, ev->y, x, y, w, h))
      evas_object_smart_callback_call(active->site, "gadget_site_dropped", pointer_site);
    evas_object_pass_events_set(active->site, 0);
    elm_object_disabled_set(active->editor, 1);
+   e_comp_object_util_del_list_remove(active->editor, pointer_site);
    E_FREE_FUNC(pointer_site, evas_object_del);
-   E_FREE_LIST(handlers, ecore_event_handler_del);
    return ECORE_CALLBACK_RENEW;
 }
 
@@ -59,19 +64,19 @@ static void
 _editor_gadget_new(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Gadget_Item *active, *gi = data;
-   Evas_Object *site;
+   Evas_Object *site, *rect;
    Z_Gadget_Site_Orient orient;
    int size;
 
    orient = z_gadget_site_orient_get(gi->site);
 
-   pointer_site = site = z_gadget_site_add(e_comp->elm, orient);
+   pointer_site = site = z_gadget_site_add(orient, NULL);
    if (orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
      evas_object_geometry_get(gi->site, NULL, NULL, NULL, &size);
    else if (orient == Z_GADGET_SITE_ORIENT_VERTICAL)
      evas_object_geometry_get(gi->site, NULL, NULL, &size, NULL);
    else
-     {} /* FIXME */
+     size = 96 * e_scale;
    evas_object_resize(site, size, size);
    evas_object_layer_set(site, E_LAYER_MENU);
    evas_object_pass_events_set(site, 1);
@@ -79,11 +84,20 @@ _editor_gadget_new(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    active = E_NEW(Gadget_Item, 1);
    active->editor = gi->editor;
    active->site = gi->site;
+   e_comp_object_util_del_list_append(gi->editor, pointer_site);
    evas_object_pass_events_set(active->site, 1);
    evas_object_event_callback_add(site, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _editor_site_hints, active);
    evas_object_event_callback_add(site, EVAS_CALLBACK_DEL, _editor_pointer_site_del, active);
    E_LIST_HANDLER_APPEND(handlers, ECORE_EVENT_MOUSE_MOVE, _editor_pointer_move, active);
    E_LIST_HANDLER_APPEND(handlers, ECORE_EVENT_MOUSE_BUTTON_DOWN, _editor_pointer_button, active);
+
+   rect = evas_object_rectangle_add(e_comp->evas);
+   evas_object_resize(rect, e_comp->w, e_comp->h);
+   evas_object_color_set(rect, 0, 0, 0, 0);
+   evas_object_layer_set(rect, E_LAYER_MENU + 1);
+   e_comp_object_util_del_list_append(pointer_site, rect);
+   evas_object_show(rect);
+   
    z_gadget_site_gadget_add(site, z_gadget_type_get(gi->gadget), 0);
    elm_object_disabled_set(gi->editor, 1);
    elm_list_item_selected_set(event_info, 0);
@@ -108,7 +122,7 @@ z_gadget_editor_add(Evas_Object *parent, Evas_Object *site)
    E_FILL(list);
    elm_list_mode_set(list, ELM_LIST_COMPRESS);
    elm_scroller_content_min_limit(list, 0, 1);
-   tempsite = z_gadget_site_add(list, Z_GADGET_SITE_ORIENT_HORIZONTAL);
+   tempsite = z_gadget_site_add(Z_GADGET_SITE_ORIENT_HORIZONTAL, NULL);
    z_gadget_site_gravity_set(tempsite, Z_GADGET_SITE_GRAVITY_NONE);
 
    it = z_gadget_type_iterator_get();

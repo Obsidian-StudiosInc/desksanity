@@ -4,8 +4,6 @@
 #include "e.h"
 #define Z_API __attribute__ ((visibility("default")))
 
-#define Z_GADGET_TYPE 0xE31337
-
 typedef enum
 {
    Z_GADGET_SITE_GRAVITY_NONE = 0,
@@ -36,7 +34,11 @@ typedef Evas_Object *(*Z_Gadget_Create_Cb)(Evas_Object *parent, int *id, Z_Gadge
 typedef Evas_Object *(*Z_Gadget_Configure_Cb)(Evas_Object *gadget);
 typedef void (*Z_Gadget_Style_Cb)(Evas_Object *owner, Eina_Stringshare *name, Evas_Object *g);
 
-Z_API Evas_Object *z_gadget_site_add(Evas_Object *parent, Z_Gadget_Site_Orient orient);
+Z_API void z_gadget_init(void);
+Z_API void z_gadget_shutdown(void);
+
+Z_API Evas_Object *z_gadget_site_add(Z_Gadget_Site_Orient orient, const char *name);
+Z_API Evas_Object *z_gadget_site_auto_add(Z_Gadget_Site_Orient orient, const char *name);
 Z_API Z_Gadget_Site_Anchor z_gadget_site_anchor_get(Evas_Object *obj);
 Z_API void z_gadget_site_owner_setup(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb);
 Z_API Z_Gadget_Site_Orient z_gadget_site_orient_get(Evas_Object *obj);

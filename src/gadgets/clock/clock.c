@@ -354,13 +354,13 @@ _conf_item_get(int *id)
 }
 
 static void
-_clock_gadget_added_cb(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+_clock_gadget_created_cb(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
 
    _eval_instance_size(inst);
    z_gadget_configure_cb_set(inst->o_clock, config_clock);
-   evas_object_smart_callback_del_full(obj, "gadget_added", _clock_gadget_added_cb, data);
+   evas_object_smart_callback_del_full(obj, "gadget_created", _clock_gadget_created_cb, data);
 }
 
 EINTERN Evas_Object *
@@ -396,7 +396,7 @@ clock_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient)
    elm_layout_signal_emit(inst->o_clock, sig, "e");
 
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, clock_del, inst);
-   evas_object_smart_callback_add(parent, "gadget_added", _clock_gadget_added_cb, inst);
+   evas_object_smart_callback_add(parent, "gadget_created", _clock_gadget_created_cb, inst);
    evas_object_data_set(o, "clock", inst);
 
    evas_object_event_callback_add(inst->o_clock,

@@ -8,6 +8,8 @@ gadget_demo(void);
 EAPI E_Module_Api e_modapi = {E_MODULE_API_VERSION, "Desksanity"};
 static E_Config_DD *conf_edd = NULL;
 
+EINTERN Eina_List *save_cbs;
+
 EINTERN Mod *mod = NULL;
 EINTERN Config *ds_config = NULL;
 
@@ -303,6 +305,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    focus_list = eina_list_free(focus_list);
    E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
    E_FREE_LIST(ds_key_focus_desks, e_object_unref);
+   save_cbs = eina_list_free(save_cbs);
    //efx_shutdown(); broken...
 
    z_gadget_type_del("Start");
@@ -312,7 +315,11 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
 EAPI int
 e_modapi_save(E_Module *m EINA_UNUSED)
 {
+   E_Comp_Cb cb;
+   Eina_List *l;
    e_config_domain_save("module.desksanity", conf_edd, ds_config);
+   EINA_LIST_FOREACH(save_cbs, l, cb)
+     cb();
    return 1;
 }
 
