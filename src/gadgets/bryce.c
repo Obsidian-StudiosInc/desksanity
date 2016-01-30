@@ -13,16 +13,19 @@ typedef struct Bryce
    Eina_List *zone_obstacles;
 
    Evas_Object *parent; //comp_object is not an elm widget
-   char *style;
+   Eina_Stringshare *style;
    int size;
    int x, y;
    int autohide_size;
    E_Layer layer;
    unsigned int zone;
+   Z_Gadget_Site_Orient orient;
+   Z_Gadget_Site_Anchor anchor;
 
    Ecore_Job *calc_job;
    Ecore_Timer *autohide_timer;
    unsigned int autohide_blocked;
+   Eina_List *popups;
 
    /* config: do not bitfield! */
    Eina_Bool autosize;
@@ -66,7 +69,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
         E_Zone *zone;
         
         zone = e_comp_object_util_zone_get(b->bryce);
-        ox = zone->w, oy = zone->y, ow = zone->w, oh = zone->h;
+        ox = zone->x, oy = zone->y, ow = zone->w, oh = zone->h;
      }
    else
      evas_object_geometry_get(b->parent, &ox, &oy, &ow, &oh);
@@ -79,7 +82,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
         if (an & Z_GADGET_SITE_ANCHOR_TOP)
           *y = oy - b->size + b->autohide_size;
         if (an & Z_GADGET_SITE_ANCHOR_BOTTOM)
-          *y = oy + oh + b->size - b->autohide_size;
+          *y = oy + oh - b->autohide_size;
      }
    else if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_VERTICAL)
      {
@@ -88,7 +91,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
         if (an & Z_GADGET_SITE_ANCHOR_LEFT)
           *x = ox - b->size + b->autohide_size;
         if (an & Z_GADGET_SITE_ANCHOR_RIGHT)
-          *x = ox + ow + b->size - b->autohide_size;
+          *x = ox + ow - b->autohide_size;
      }
 }
 
@@ -220,7 +223,10 @@ _bryce_autohide_show(Bryce *b)
 static void
 _bryce_autohide_hide(Bryce *b)
 {
-   if (!b->autohide_blocked)
+   if (b->autohide_blocked) return;
+   if (b->autohide_timer)
+     ecore_timer_reset(b->autohide_timer);
+   else
      b->autohide_timer = ecore_timer_add(1.0, (Ecore_Task_Cb)_bryce_autohide_timeout, b);
 }
 
@@ -247,6 +253,7 @@ _bryce_autohide_setup(Bryce *b)
 {
    int x, y, w, h;
 
+   if (!b->autohide) return;
    b->autohide_event = evas_object_rectangle_add(evas_object_evas_get(b->bryce));
    evas_object_geometry_get(b->bryce, &x, &y, &w, &h);
    evas_object_geometry_set(b->autohide_event, x, y, w, h);
@@ -267,21 +274,12 @@ static void
 _bryce_style(Evas_Object *site, Eina_Stringshare *name, Evas_Object *g)
 {
    Evas_Object *ly, *prev;
-   static int n;
    char buf[1024];
 
    BRYCE_GET(site);
    
    ly = elm_layout_add(b->site);
-   if (name)
-     snprintf(buf, sizeof(buf), "z/bryce/%s/%s", b->style ?: "default", name);
-   else
-     {
-        if (n++ % 2)
-          snprintf(buf, sizeof(buf), "z/bryce/%s/inset", b->style ?: "default");
-        else
-          snprintf(buf, sizeof(buf), "z/bryce/%s/plain", b->style ?: "default");
-     }
+   snprintf(buf, sizeof(buf), "z/bryce/%s/%s", b->style ?: "default", name ?: "plain");
    e_theme_edje_object_set(ly, NULL, buf);
    prev = z_gadget_util_layout_style_init(g, ly);
    elm_object_part_content_set(ly, "e.swallow.content", g);
@@ -382,15 +380,32 @@ _bryce_moveresize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event
 }
 
 static void
-_bryce_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+_bryce_popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Bryce *b = data;
 
+   b->autohide_blocked--;
+   b->popups = eina_list_remove(b->popups, obj);
+   if (!b->autohide) return;
+   if (!b->mouse_in)
+     _bryce_autohide_hide(b);
+}
+
+static void
+_bryce_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Bryce *b = data;
+   Evas_Object *p;
+
+   bryces->bryces = eina_list_remove(bryces->bryces, b);
    E_FREE_LIST(b->zone_obstacles, e_object_del);
    evas_object_del(b->autohide_event);
    E_FREE_FUNC(b->calc_job, ecore_job_del);
    E_FREE_FUNC(b->autohide_timer, ecore_timer_del);
-   free(b->style);
+   eina_stringshare_del(b->name);
+   EINA_LIST_FREE(b->popups, p)
+     evas_object_event_callback_del(p, EVAS_CALLBACK_HIDE, _bryce_popup_hide);
+   eina_stringshare_del(b->style);
    free(data);
 }
 
@@ -445,6 +460,17 @@ _bryce_gadgets_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUS
 }
 
 static void
+_bryce_remove_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   Bryce *b = data;
+   bryces->bryces = eina_list_remove(bryces->bryces, data);
+   z_gadget_site_del(b->site);
+   evas_object_hide(b->bryce);
+   evas_object_del(b->bryce);
+   e_config_save_queue();
+}
+
+static void
 _bryce_owner_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Bryce *b = data;
@@ -460,17 +486,11 @@ _bryce_owner_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    mi = e_menu_item_new(subm);
    e_menu_item_label_set(mi, "Gadgets");
    e_menu_item_callback_set(mi, _bryce_gadgets_menu, b);
-}
 
-static void
-_bryce_popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
-{
-   Bryce *b = data;
-
-   b->autohide_blocked--;
-   if (!b->autohide) return;
-   if (!b->mouse_in)
-     _bryce_autohide_hide(b);
+   mi = e_menu_item_new(subm);
+   e_menu_item_label_set(mi, "Remove");
+   e_util_menu_item_theme_icon_set(mi, "list-remove");
+   e_menu_item_callback_set(mi, _bryce_remove_menu, b);
 }
 
 static void
@@ -480,37 +500,50 @@ _bryce_popup(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 
    evas_object_event_callback_add(event_info, EVAS_CALLBACK_HIDE, _bryce_popup_hide, b);
    b->autohide_blocked++;
+   b->popups = eina_list_append(b->popups, event_info);
    if (b->autohide)
      _bryce_autohide_show(b);
 }
 
 static void
+_bryce_orient(Bryce *b)
+{
+   char buf[1024];
+   
+   evas_object_del(b->site);
+
+   snprintf(buf, sizeof(buf), "__bryce%s", b->name);
+   b->site = z_gadget_site_add(b->orient, buf);
+   evas_object_data_set(b->site, "__bryce", b);
+   elm_object_content_set(b->scroller, b->site);
+   z_gadget_site_owner_setup(b->site, b->anchor, _bryce_style);
+   if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+     elm_layout_signal_emit(b->layout, "e,state,orient,horizontal", "e");
+   else
+     elm_layout_signal_emit(b->layout, "e,state,orient,vertical", "e");
+}
+
+static void
 _bryce_create(Bryce *b, Evas_Object *parent)
 {
-   Evas_Object *ly, *bryce, *scr, *site;
+   Evas_Object *ly, *bryce, *scr;
    char buf[1024];
 
+   snprintf(buf, sizeof(buf), "z/bryce/%s/base", b->style ?: "default");
    ly = elm_layout_add(parent);
-   e_theme_edje_object_set(ly, NULL, "z/bryce/default/base");
+   e_theme_edje_object_set(ly, NULL, buf);
 
-   scr = elm_scroller_add(ly);
+   b->scroller = scr = elm_scroller_add(ly);
    elm_object_style_set(scr, "bryce");
-   snprintf(buf, sizeof(buf), "__bryce%s", b->name);
-   site = z_gadget_site_add(Z_GADGET_SITE_ORIENT_HORIZONTAL, buf);
-   z_gadget_site_owner_setup(site, Z_GADGET_SITE_ANCHOR_TOP, _bryce_style);
-   elm_object_content_set(scr, site);
+   _bryce_orient(b);
    elm_object_part_content_set(ly, "e.swallow.content", scr);
-   elm_layout_signal_emit(ly, "e,state,orient,top", "e");
    evas_object_show(ly);
-   bryce = e_comp_object_util_add(ly, E_COMP_OBJECT_TYPE_POPUP);
+   b->bryce = bryce = e_comp_object_util_add(ly, E_COMP_OBJECT_TYPE_POPUP);
    evas_object_data_set(bryce, "comp_skip", (void*)1);
    evas_object_layer_set(bryce, E_LAYER_POPUP);
    evas_object_lower(bryce);
 
-   b->bryce = bryce;
    b->layout = ly;
-   b->site = site;
-   b->scroller = scr;
    b->parent = parent;
    {
       const char *str;
@@ -520,16 +553,15 @@ _bryce_create(Bryce *b, Evas_Object *parent)
         b->autohide_size = strtol(str, NULL, 10);
    }
    evas_object_data_set(bryce, "__bryce", b);
-   evas_object_data_set(site, "__bryce", b);
    evas_object_event_callback_add(bryce, EVAS_CALLBACK_DEL, _bryce_del, b);
    evas_object_event_callback_add(bryce, EVAS_CALLBACK_RESTACK, _bryce_restack, b);
    evas_object_event_callback_add(bryce, EVAS_CALLBACK_MOVE, _bryce_moveresize, b);
    evas_object_event_callback_add(bryce, EVAS_CALLBACK_RESIZE, _bryce_moveresize, b);
-   evas_object_event_callback_add(site, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _bryce_site_hints, b);
+   evas_object_event_callback_add(b->site, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _bryce_site_hints, b);
 
-   evas_object_smart_callback_add(site, "gadget_style_menu", _bryce_style_menu, b);
-   evas_object_smart_callback_add(site, "gadget_owner_menu", _bryce_owner_menu, b);
-   evas_object_smart_callback_add(site, "gadget_popup", _bryce_popup, b);
+   evas_object_smart_callback_add(b->site, "gadget_style_menu", _bryce_style_menu, b);
+   evas_object_smart_callback_add(b->site, "gadget_owner_menu", _bryce_owner_menu, b);
+   evas_object_smart_callback_add(b->site, "gadget_popup", _bryce_popup, b);
 
    evas_object_clip_set(bryce, e_comp_zone_number_get(b->zone)->bg_clip_object);
    _bryce_autohide_setup(b);
@@ -537,17 +569,28 @@ _bryce_create(Bryce *b, Evas_Object *parent)
 }
 
 Z_API Evas_Object *
-z_bryce_add(Evas_Object *parent, const char *name)
+z_bryce_add(Evas_Object *parent, const char *name, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor an)
 {
    Bryce *b;
 
    b = E_NEW(Bryce, 1);
    b->size = 48;
    b->name = eina_stringshare_add(name);
+   b->anchor = an;
+   b->orient = orient;
    _bryce_create(b, parent);
    bryces->bryces = eina_list_append(bryces->bryces, b);
    e_config_save_queue();
    return b->bryce;
+}
+
+Z_API void
+z_bryce_orient(Evas_Object *bryce, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor an)
+{
+   BRYCE_GET(bryce);
+   b->orient = orient;
+   b->anchor = an;
+   _bryce_orient(b);
 }
 
 Z_API Evas_Object *
@@ -595,6 +638,52 @@ z_bryce_autohide_set(Evas_Object *bryce, Eina_Bool set)
    e_config_save_queue();
 }
 
+Z_API Eina_List *
+z_bryce_list(Evas_Object *parent)
+{
+   Eina_List *l, *ret = NULL;
+   Bryce *b;
+
+   if (!parent) parent = e_comp->elm;
+   EINA_LIST_FOREACH(bryces->bryces, l, b)
+     {
+        if (!b->bryce) continue;
+        if (parent == b->parent)
+          ret = eina_list_append(ret, b->bryce);
+     }
+   return ret;
+}
+
+Z_API Eina_Bool
+z_bryce_exists(Evas_Object *parent, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor an)
+{
+   Eina_List *l;
+   Bryce *b;
+
+   if (!parent) parent = e_comp->elm;
+   EINA_LIST_FOREACH(bryces->bryces, l, b)
+     {
+        if (!b->bryce) continue;
+        if (parent != b->parent) continue;
+        if (b->orient != orient) continue;
+        if ((b->anchor & an) == an) return EINA_TRUE;
+     }
+   return EINA_FALSE;
+}
+
+Z_API void
+z_bryce_style_set(Evas_Object *bryce, const char *style)
+{
+   char buf[1024];
+
+   BRYCE_GET(bryce);
+
+   eina_stringshare_replace(&b->style, style);
+   snprintf(buf, sizeof(buf), "z/bryce/%s/base", b->style ?: "default");
+   e_theme_edje_object_set(b->layout, NULL, buf);
+   evas_object_smart_callback_call(b->site, "gadget_site_style", NULL);
+}
+
 /* FIXME */
 static void
 bryce_save(void)
@@ -612,6 +701,8 @@ z_bryce_init(void)
    E_CONFIG_VAL(edd_bryce, Bryce, layer, UINT);
    E_CONFIG_VAL(edd_bryce, Bryce, autosize, UCHAR);
    E_CONFIG_VAL(edd_bryce, Bryce, autohide, UCHAR);
+   E_CONFIG_VAL(edd_bryce, Bryce, orient, UINT);
+   E_CONFIG_VAL(edd_bryce, Bryce, anchor, UINT);
 
    edd_bryces = E_CONFIG_DD_NEW("Bryces", Bryces);
    E_CONFIG_LIST(edd_bryces, Bryces, bryces, edd_bryce);
@@ -638,13 +729,17 @@ Z_API void
 z_bryce_shutdown(void)
 {
    Bryce *b;
+
    E_CONFIG_DD_FREE(edd_bryce);
    E_CONFIG_DD_FREE(edd_bryces);
    EINA_LIST_FREE(bryces->bryces, b)
      {
+        evas_object_event_callback_del(b->bryce, EVAS_CALLBACK_DEL, _bryce_del);
+        eina_list_free(b->popups);
         evas_object_hide(b->bryce);
         evas_object_del(b->bryce);
         eina_stringshare_del(b->name);
+        eina_stringshare_del(b->style);
         ecore_job_del(b->calc_job);
         ecore_timer_del(b->autohide_timer);
         free(b);

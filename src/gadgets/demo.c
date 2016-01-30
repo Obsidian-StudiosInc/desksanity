@@ -98,6 +98,42 @@ _gadget_conf()
 }
 
 static void
+_bryce_edit_end(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   e_bindings_disabled_set(0);
+   evas_object_hide(data);
+   evas_object_del(data);
+}
+
+static Eina_Bool
+_bryce_editor_key_down()
+{
+   return EINA_TRUE;
+}
+
+
+static void
+_bryce_conf()
+{
+   Evas_Object *editor, *comp_object;
+   E_Zone *zone;
+   int x, y, w, h;
+
+   zone = e_zone_current_get();
+   x = zone->x, y = zone->y, w = zone->w, h = zone->h;
+   e_bindings_disabled_set(1);
+   editor = z_bryce_editor_add(e_comp->elm);
+
+   evas_object_geometry_set(editor, x, y, w, h);
+   comp_object = e_comp_object_util_add(editor, E_COMP_OBJECT_TYPE_NONE);
+   evas_object_event_callback_add(editor, EVAS_CALLBACK_DEL, _bryce_edit_end, comp_object);
+   evas_object_layer_set(comp_object, E_LAYER_POPUP);
+   evas_object_show(comp_object);
+
+   e_comp_object_util_autoclose(comp_object, NULL, _bryce_editor_key_down, NULL);
+}
+
+static void
 _gadget_menu(void *d EINA_UNUSED, E_Menu *m)
 {
    E_Menu_Item *mi;
@@ -106,6 +142,11 @@ _gadget_menu(void *d EINA_UNUSED, E_Menu *m)
    e_menu_item_label_set(mi, _("Gadgets 2.0"));
    e_util_menu_item_theme_icon_set(mi, "preferences-desktop-wallpaper");
    e_menu_item_callback_set(mi, _gadget_conf, NULL);
+
+   mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, _("Bryces"));
+   //e_util_menu_item_theme_icon_set(mi, "preferences-desktop-wallpaper");
+   e_menu_item_callback_set(mi, _bryce_conf, NULL);
 }
 
 EINTERN void

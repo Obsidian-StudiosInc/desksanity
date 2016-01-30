@@ -214,7 +214,7 @@ _gadget_object_create(Z_Gadget_Config *zgc)
    zgc->gadget = zgc->display = g;
    evas_object_data_set(g, "__z_gadget", zgc);
    if (zgc->site->style_cb)
-     zgc->site->style_cb(zgc->site->layout, NULL, g);
+     zgc->site->style_cb(zgc->site->layout, zgc->style.name, g);
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    _gadget_reparent(zgc->site, zgc);
@@ -480,8 +480,8 @@ _gadget_mouse_resize(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_
    evas_object_geometry_get(zgc->display, &ox, &oy, &ow, &oh);
    gw = zgc->w * w;
    gh = zgc->h * h;
-   gw -= (ev->x - zgc->down.x);
-   gh -= (ev->y - zgc->down.y);
+   gw += (ev->x - zgc->down.x);
+   gh += (ev->y - zgc->down.y);
    zgc->w = gw / w;
    zgc->h = gh / h;
    zgc->down.x = ev->x;
@@ -872,6 +872,7 @@ _gadget_menu_style(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
    Z_Gadget_Config *zgc = data;
    Eina_Stringshare *style = e_object_data_get(E_OBJECT(mi));
 
+   eina_stringshare_refplace(&zgc->style.name, style);
    if (zgc->site->style_cb)
      zgc->site->style_cb(zgc->site->layout, style, zgc->gadget);
 }
@@ -1147,18 +1148,22 @@ static void
 _site_restack(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Z_Gadget_Site *zgs = data;
-   Eina_List *l;
-   Z_Gadget_Config *zgc;
-   int layer;
 
-   layer = evas_object_layer_get(obj);
-   if (!zgs->orient)
+   if (!evas_object_smart_parent_get(zgs->layout))
      {
-        EINA_LIST_FOREACH(zgs->gadgets, l, zgc)
-          if (zgc->display)
-            evas_object_layer_set(zgc->display, layer);
+        Eina_List *l;
+        Z_Gadget_Config *zgc;
+        int layer;
+
+        layer = evas_object_layer_get(obj);
+        if (!zgs->orient)
+          {
+             EINA_LIST_FOREACH(zgs->gadgets, l, zgc)
+               if (zgc->display)
+                 evas_object_layer_set(zgc->display, layer);
+          }
+        evas_object_layer_set(zgs->events, layer);
      }
-   evas_object_layer_set(zgs->events, layer);
    evas_object_raise(zgs->events);
 }
 
@@ -1166,16 +1171,33 @@ static void
 _site_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Z_Gadget_Site *zgs = data;
+   Z_Gadget_Config *zgc;
+   Eina_List *l;
 
    E_FREE_FUNC(zgs->events, evas_object_del);
    zgs->layout = NULL;
    zgs->cur_size = 0;
    zgs->action = NULL;
+   zgs->style_cb = NULL;
    E_FREE_FUNC(zgs->move_handler, ecore_event_handler_del);
    E_FREE_FUNC(zgs->mouse_up_handler, ecore_event_handler_del);
+   EINA_LIST_FOREACH(zgs->gadgets, l, zgc)
+     evas_object_del(zgc->gadget);
    if (zgs->name) return;
    eina_stringshare_del(zgs->name);
    free(zgs);
+}
+
+static void
+_site_style(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Z_Gadget_Site *zgs = data;
+   Z_Gadget_Config *zgc;
+   Eina_List *l;
+
+   if (!zgs->style_cb) return;
+   EINA_LIST_FOREACH(zgs->gadgets, l, zgc)
+     zgc->site->style_cb(zgc->site->layout, zgc->style.name, zgc->gadget);
 }
 
 static void
@@ -1194,8 +1216,10 @@ _site_create(Z_Gadget_Site *zgs)
    evas_object_event_callback_add(zgs->layout, EVAS_CALLBACK_RESTACK, _site_restack, zgs);
 
    zgs->events = evas_object_rectangle_add(e_comp->evas);
+   evas_object_name_set(zgs->events, "zgs->events");
    evas_object_event_callback_add(zgs->layout, EVAS_CALLBACK_MOVE, _site_move, zgs);
    evas_object_smart_callback_add(zgs->layout, "gadget_site_dropped", _site_drop, zgs);
+   evas_object_smart_callback_add(zgs->layout, "gadget_site_style", _site_style, zgs);
    evas_object_pointer_mode_set(zgs->events, EVAS_OBJECT_POINTER_MODE_NOGRAB);
    evas_object_color_set(zgs->events, 0, 0, 0, 0);
    evas_object_repeat_events_set(zgs->events, 1);
@@ -1299,6 +1323,17 @@ z_gadget_site_auto_add(Z_Gadget_Site_Orient orient, const char *name)
    return _site_util_add(orient, name, 1);
 }
 
+Z_API void
+z_gadget_site_del(Evas_Object *obj)
+{
+   ZGS_GET(obj);
+
+   sites->sites = eina_list_remove(sites->sites, zgs);
+   evas_object_del(zgs->layout);
+   eina_stringshare_del(zgs->name);
+   free(zgs);
+}
+
 Z_API Z_Gadget_Site_Anchor
 z_gadget_site_anchor_get(Evas_Object *obj)
 {
@@ -1310,11 +1345,17 @@ z_gadget_site_anchor_get(Evas_Object *obj)
 Z_API void
 z_gadget_site_owner_setup(Evas_Object *obj, Z_Gadget_Site_Anchor an, Z_Gadget_Style_Cb cb)
 {
+   Evas_Object *parent;
    ZGS_GET(obj);
 
    zgs->anchor = an;
    zgs->style_cb = cb;
    evas_object_smart_callback_call(obj, "gadget_anchor", NULL);
+   parent = evas_object_smart_parent_get(obj);
+   if (parent)
+     evas_object_smart_member_add(zgs->events, parent);
+   else
+     evas_object_smart_member_del(zgs->events);
 }
 
 Z_API Z_Gadget_Site_Orient

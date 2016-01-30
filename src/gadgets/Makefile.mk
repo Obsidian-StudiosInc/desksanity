@@ -3,6 +3,7 @@ AM_CPPFLAGS += \
 
 module_la_SOURCES += \
 src/gadgets/bryce.c \
+src/gadgets/bryce_config.c \
 src/gadgets/bryce.h \
 src/gadgets/core.c \
 src/gadgets/site_config.c \
