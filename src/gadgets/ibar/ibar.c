@@ -291,6 +291,7 @@ _ibar_new(Evas_Object *parent, Instance *inst)
    elm_box_horizontal_set(b->o_outerbox, 1);
    elm_box_align_set(b->o_outerbox, 0.5, 0.5);
    b->o_box = elm_box_add(b->o_outerbox);
+   E_EXPAND(b->o_box);
    E_FILL(b->o_box);
    elm_box_homogeneous_set(b->o_box, 1);
    elm_box_horizontal_set(b->o_box, 1);
@@ -837,7 +838,9 @@ static void
 _ibar_cb_resize_job(void *data)
 {
    Instance *inst = data;
-   _ibar_resize_handle(inst->ibar);
+   //evas_object_smart_need_recalculate_set(inst->ibar->o_outerbox, 1);
+   //evas_object_smart_need_recalculate_set(inst->ibar->o_box, 1);
+   //_ibar_resize_handle(inst->ibar);
    _ibar_instance_drop_zone_recalc(inst);
    inst->ibar->resize_job = NULL;
 }

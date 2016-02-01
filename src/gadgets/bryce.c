@@ -1,6 +1,8 @@
 #include "e_mod_main.h"
 #include "gadget.h"
 
+#define DEFAULT_LAYER E_LAYER_POPUP
+
 typedef struct Bryce
 {
    Eina_Stringshare *name;
@@ -34,6 +36,7 @@ typedef struct Bryce
    Eina_Bool hidden : 1;
    Eina_Bool animating : 1;
    Eina_Bool mouse_in : 1;
+   Eina_Bool noshadow : 1;
 } Bryce;
 
 typedef struct Bryces
@@ -301,12 +304,12 @@ _bryce_restack(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_in
    E_Layer layer;
 
    layer = evas_object_layer_get(obj);
-   if (layer == b->layer) return;
-   if (layer == E_LAYER_DESKTOP)
+   b->layer = layer;
+   if (b->noshadow || (layer == b->layer)) return;
+   if ((layer == E_LAYER_DESKTOP) || b->noshadow)
      e_comp_object_util_type_set(b->bryce, E_COMP_OBJECT_TYPE_NONE);
    else
      e_comp_object_util_type_set(b->bryce, E_COMP_OBJECT_TYPE_POPUP);
-   b->layer = layer;
 }
 
 static void
@@ -524,14 +527,22 @@ _bryce_orient(Bryce *b)
 }
 
 static void
-_bryce_create(Bryce *b, Evas_Object *parent)
+_bryce_style_apply(Bryce *b)
 {
-   Evas_Object *ly, *bryce, *scr;
    char buf[1024];
 
    snprintf(buf, sizeof(buf), "z/bryce/%s/base", b->style ?: "default");
+   e_theme_edje_object_set(b->layout, NULL, buf);
+   b->noshadow = !!elm_layout_data_get(b->layout, "noshadow");
+}
+
+static void
+_bryce_create(Bryce *b, Evas_Object *parent)
+{
+   Evas_Object *ly, *bryce, *scr;
+
    ly = elm_layout_add(parent);
-   e_theme_edje_object_set(ly, NULL, buf);
+   _bryce_style_apply(b);
 
    b->scroller = scr = elm_scroller_add(ly);
    elm_object_style_set(scr, "bryce");
@@ -540,7 +551,7 @@ _bryce_create(Bryce *b, Evas_Object *parent)
    evas_object_show(ly);
    b->bryce = bryce = e_comp_object_util_add(ly, E_COMP_OBJECT_TYPE_POPUP);
    evas_object_data_set(bryce, "comp_skip", (void*)1);
-   evas_object_layer_set(bryce, E_LAYER_POPUP);
+   evas_object_layer_set(bryce, b->layer);
    evas_object_lower(bryce);
 
    b->layout = ly;
@@ -578,6 +589,7 @@ z_bryce_add(Evas_Object *parent, const char *name, Z_Gadget_Site_Orient orient, 
    b->name = eina_stringshare_add(name);
    b->anchor = an;
    b->orient = orient;
+   b->layer = DEFAULT_LAYER;
    _bryce_create(b, parent);
    bryces->bryces = eina_list_append(bryces->bryces, b);
    e_config_save_queue();
@@ -674,13 +686,10 @@ z_bryce_exists(Evas_Object *parent, Z_Gadget_Site_Orient orient, Z_Gadget_Site_A
 Z_API void
 z_bryce_style_set(Evas_Object *bryce, const char *style)
 {
-   char buf[1024];
-
    BRYCE_GET(bryce);
 
    eina_stringshare_replace(&b->style, style);
-   snprintf(buf, sizeof(buf), "z/bryce/%s/base", b->style ?: "default");
-   e_theme_edje_object_set(b->layout, NULL, buf);
+   _bryce_style_apply(b);
    evas_object_smart_callback_call(b->site, "gadget_site_style", NULL);
 }
 
