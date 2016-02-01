@@ -306,7 +306,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
    E_FREE_LIST(ds_key_focus_desks, e_object_unref);
    save_cbs = eina_list_free(save_cbs);
-   //efx_shutdown(); broken...
+   efx_shutdown();
 
    z_gadget_type_del("Start");
    return 1;
@@ -341,6 +341,7 @@ ds_fade_setup(Evas_Object_Event_Cb click_cb)
 EINTERN void
 ds_fade_end(Ecore_Cb end_cb, Evas_Object_Event_Cb click_cb)
 {
+   if (!fade_obj) return;
    evas_object_pass_events_set(fade_obj, 1);
    efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, (Efx_End_Cb)_ds_fade_end, end_cb);
    if (click_cb)
