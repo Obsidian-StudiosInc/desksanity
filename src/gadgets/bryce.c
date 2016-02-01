@@ -297,6 +297,14 @@ _bryce_site_hints(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED,
      b->calc_job = ecore_job_add((Ecore_Cb)_bryce_autosize, b);
 }
 
+static E_Comp_Object_Type
+_bryce_shadow_type(const Bryce *b)
+{
+   if ((b->layer == E_LAYER_DESKTOP) || b->noshadow)
+     return E_COMP_OBJECT_TYPE_NONE;
+   return E_COMP_OBJECT_TYPE_POPUP;
+}
+
 static void
 _bryce_restack(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
@@ -305,11 +313,8 @@ _bryce_restack(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_in
 
    layer = evas_object_layer_get(obj);
    b->layer = layer;
-   if (b->noshadow || (layer == b->layer)) return;
-   if ((layer == E_LAYER_DESKTOP) || b->noshadow)
-     e_comp_object_util_type_set(b->bryce, E_COMP_OBJECT_TYPE_NONE);
-   else
-     e_comp_object_util_type_set(b->bryce, E_COMP_OBJECT_TYPE_POPUP);
+   if ((!b->noshadow) && (layer != b->layer))
+     e_comp_object_util_type_set(b->bryce, _bryce_shadow_type(b));
 }
 
 static void
@@ -530,10 +535,14 @@ static void
 _bryce_style_apply(Bryce *b)
 {
    char buf[1024];
+   Eina_Bool noshadow;
 
    snprintf(buf, sizeof(buf), "z/bryce/%s/base", b->style ?: "default");
    e_theme_edje_object_set(b->layout, NULL, buf);
+   noshadow = b->noshadow;
    b->noshadow = !!elm_layout_data_get(b->layout, "noshadow");
+   if (b->bryce && (noshadow != b->noshadow))
+     e_comp_object_util_type_set(b->bryce, _bryce_shadow_type(b));
 }
 
 static void
@@ -541,7 +550,7 @@ _bryce_create(Bryce *b, Evas_Object *parent)
 {
    Evas_Object *ly, *bryce, *scr;
 
-   ly = elm_layout_add(parent);
+   b->layout = ly = elm_layout_add(parent);
    _bryce_style_apply(b);
 
    b->scroller = scr = elm_scroller_add(ly);
@@ -549,12 +558,11 @@ _bryce_create(Bryce *b, Evas_Object *parent)
    _bryce_orient(b);
    elm_object_part_content_set(ly, "e.swallow.content", scr);
    evas_object_show(ly);
-   b->bryce = bryce = e_comp_object_util_add(ly, E_COMP_OBJECT_TYPE_POPUP);
+   b->bryce = bryce = e_comp_object_util_add(ly, _bryce_shadow_type(b));
    evas_object_data_set(bryce, "comp_skip", (void*)1);
    evas_object_layer_set(bryce, b->layer);
    evas_object_lower(bryce);
 
-   b->layout = ly;
    b->parent = parent;
    {
       const char *str;
@@ -690,6 +698,7 @@ z_bryce_style_set(Evas_Object *bryce, const char *style)
 
    eina_stringshare_replace(&b->style, style);
    _bryce_style_apply(b);
+   e_config_save_queue();
    evas_object_smart_callback_call(b->site, "gadget_site_style", NULL);
 }
 
@@ -705,6 +714,7 @@ z_bryce_init(void)
 {
    edd_bryce = E_CONFIG_DD_NEW("Bryce", Bryce);
    E_CONFIG_VAL(edd_bryce, Bryce, name, STR);
+   E_CONFIG_VAL(edd_bryce, Bryce, style, STR);
    E_CONFIG_VAL(edd_bryce, Bryce, zone, UINT);
    E_CONFIG_VAL(edd_bryce, Bryce, size, INT);
    E_CONFIG_VAL(edd_bryce, Bryce, layer, UINT);
