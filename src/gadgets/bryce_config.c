@@ -17,6 +17,7 @@ static void _editor_add_right(void *data, Evas_Object *obj, const char *sig, con
 static void
 setup_exists(Evas_Object *editor, Evas_Object *parent, Z_Gadget_Site_Anchor an)
 {
+   /* FIXME: eliminate existing shelf areas during location step */
    if (z_bryce_exists(parent, Z_GADGET_SITE_ORIENT_HORIZONTAL, Z_GADGET_SITE_ANCHOR_BOTTOM | an))
      elm_object_signal_emit(editor, "e,bryce,exists,bottom", "e");
    if (z_bryce_exists(parent, Z_GADGET_SITE_ORIENT_HORIZONTAL, Z_GADGET_SITE_ANCHOR_TOP | an))

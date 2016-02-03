@@ -838,8 +838,8 @@ static void
 _ibar_cb_resize_job(void *data)
 {
    Instance *inst = data;
-   //evas_object_smart_need_recalculate_set(inst->ibar->o_outerbox, 1);
-   //evas_object_smart_need_recalculate_set(inst->ibar->o_box, 1);
+
+   evas_object_size_hint_min_set(inst->ibar->o_box, 0, 0);
    //_ibar_resize_handle(inst->ibar);
    _ibar_instance_drop_zone_recalc(inst);
    inst->ibar->resize_job = NULL;

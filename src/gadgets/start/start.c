@@ -127,9 +127,6 @@ _menu_cb_post(void *data, E_Menu *m)
    fin = m == inst->main_menu;
    e_object_del(E_OBJECT(m));
    if (!fin) return;
-   /* FIXME
-   e_gadcon_locked_set(inst->gcc->gadcon, 0);
-   */
    elm_layout_signal_emit(inst->o_button, "e,state,unfocused", "e");
    inst->main_menu = NULL;
 }
@@ -155,12 +152,11 @@ _button_cb_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNU
    if (!inst->main_menu) return;
    e_menu_post_deactivate_callback_set(inst->main_menu,
                                        _menu_cb_post, inst);
-   /* FIXME
-   e_gadcon_locked_set(inst->gcc->gadcon, 1);
-   */
    e_menu_activate_mouse(inst->main_menu,
                          e_zone_current_get(),
                          x, y, w, h, E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
+   evas_object_smart_callback_call(z_gadget_site_get(inst->o_button),
+     "gadget_popup", inst->main_menu->comp_object);
    elm_layout_signal_emit(inst->o_button, "e,state,focused", "e");
 }
 

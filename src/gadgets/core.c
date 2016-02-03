@@ -186,7 +186,6 @@ _gadget_object_free(E_Object *eobj)
    evas_object_event_callback_del_full(zgc->gadget, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    if (zgc->gadget != zgc->display)
      evas_object_event_callback_del_full(zgc->display, EVAS_CALLBACK_DEL, _gadget_del, zgc);
-   evas_object_event_callback_del_full(zgc->gadget, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    E_FREE_FUNC(zgc->gadget, evas_object_del);
    E_FREE_FUNC(zgc->cfg_object, evas_object_del);
    E_FREE_FUNC(zgc->style.obj, evas_object_del);
@@ -992,7 +991,9 @@ _site_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_
    zgc = _gadget_at_xy(zgs, ev->output.x, ev->output.y, NULL);
    if (!zgc) return;
    act = e_bindings_mouse_down_evas_event_handle(E_BINDING_CONTEXT_ANY, zgc->e_obj_inherit, event_info);
-   if (act && act->func.end_mouse)
+   if (!act) return;
+   ev->event_flags |= EVAS_EVENT_FLAG_ON_HOLD;
+   if (act->func.end_mouse)
      {
         int x, y;
 
@@ -1000,7 +1001,6 @@ _site_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_
         zgs->action = zgc;
         if (!zgs->mouse_up_handler)
           zgs->mouse_up_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_BUTTON_UP, (Ecore_Event_Handler_Cb)_site_mouse_up, zgs);
-
 
         evas_object_geometry_get(zgc->display, &x, &y, NULL, NULL);
         zgc->offset.x = ev->canvas.x - x;
@@ -1189,7 +1189,7 @@ _site_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *e
 }
 
 static void
-_site_style(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+_site_style(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Z_Gadget_Site *zgs = data;
    Z_Gadget_Config *zgc;
