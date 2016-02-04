@@ -1,5 +1,6 @@
 #include "e_mod_main.h"
 #include "gadget.h"
+#include "bryce.h"
 
 #define DEFAULT_LAYER E_LAYER_POPUP
 #define Z_BRYCE_TYPE 0xE31338
@@ -27,6 +28,7 @@ typedef struct Bryce
    Z_Gadget_Site_Anchor anchor;
 
    Ecore_Job *calc_job;
+   Ecore_Timer *save_timer;
    Ecore_Timer *autohide_timer;
    unsigned int autohide_blocked;
    Eina_List *popups;
@@ -52,6 +54,7 @@ static E_Config_DD *edd_bryces;
 static E_Config_DD *edd_bryce;
 static Bryces *bryces;
 static E_Action *resize_act;
+static E_Action *menu_act;
 
 #define BRYCE_GET(obj) \
    Bryce *b; \
@@ -83,7 +86,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
      evas_object_geometry_get(b->parent, &ox, &oy, &ow, &oh);
    an = z_gadget_site_anchor_get(b->site);
 
-   if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+   if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
      {
         *x = b->x;
 
@@ -92,7 +95,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
         if (an & Z_GADGET_SITE_ANCHOR_BOTTOM)
           *y = oy + oh - b->autohide_size;
      }
-   else if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_VERTICAL)
+   else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
      {
         *y = b->y;
 
@@ -104,7 +107,7 @@ _bryce_autohide_coords(Bryce *b, int *x, int *y)
 }
 
 static void
-_bryce_position(Bryce *b, int w, int h)
+_bryce_position(Bryce *b, int w, int h, int *nx, int *ny)
 {
    int ox, oy, ow, oh;
    int x, y;
@@ -129,14 +132,14 @@ _bryce_position(Bryce *b, int w, int h)
      x = ox;
    if (an & Z_GADGET_SITE_ANCHOR_TOP)
      y = oy;
-   if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+   if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
      {
         if (an & Z_GADGET_SITE_ANCHOR_RIGHT)
           x = ox + ow - w;
         if (an & Z_GADGET_SITE_ANCHOR_BOTTOM)
           y = oy + oh - b->size;
      }
-   else if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_VERTICAL)
+   else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
      {
         if (an & Z_GADGET_SITE_ANCHOR_RIGHT)
           x = ox + ow - b->size;
@@ -158,30 +161,32 @@ _bryce_position(Bryce *b, int w, int h)
    else if (b->hidden)
      _bryce_autohide_coords(b, &x, &y);
 
-   evas_object_move(b->bryce, x, y);
+   if (nx && ny)
+     *nx = x, *ny = y;
+   else
+     evas_object_move(b->bryce, x, y);
 }
 
 static void
 _bryce_autosize(Bryce *b)
 {
-   int lw, lh, sw, sh, maxw, maxh;
+   int lw, lh, sw, sh, maxw, maxh, x, y, w, h;
 
    E_FREE_FUNC(b->calc_job, ecore_job_del);
    if (!b->autosize)
      {
-        int w, h;
         evas_object_geometry_get(b->parent, NULL, NULL, &w, &h);
         if (b->size_changed)
           elm_object_content_unset(b->scroller);
+        _bryce_position(b, w, h, &x, &y);
         if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
-          evas_object_resize(b->bryce, w, b->size);
+          efx_resize(b->bryce, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(x, y), w, b->size, 0.1, NULL, NULL);
         else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
-          evas_object_resize(b->bryce, b->size, h);
+          efx_resize(b->bryce, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(x, y), b->size, h, 0.1, NULL, NULL);
         evas_object_smart_need_recalculate_set(b->site, 1);
         evas_object_size_hint_min_set(b->site, -1, -1);
         if (b->size_changed)
           elm_object_content_set(b->scroller, b->site);
-        _bryce_position(b, w, h);
         b->size_changed = 0;
         return;
      }
@@ -196,20 +201,23 @@ _bryce_autosize(Bryce *b)
      evas_object_geometry_get(b->parent, NULL, NULL, &maxw, &maxh);
    if (b->size_changed)
      {
+        evas_object_geometry_get(b->bryce, NULL, NULL, &w, &h);
         elm_object_content_unset(b->scroller);
         if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
           evas_object_resize(b->bryce, maxw, b->size);
         else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
           evas_object_resize(b->bryce, b->size, maxh);
         elm_object_content_set(b->scroller, b->site);
+        evas_object_resize(b->bryce, w, h);
      }
    evas_object_size_hint_min_get(b->layout, &lw, &lh);
    evas_object_size_hint_min_get(b->site, &sw, &sh);
+   _bryce_position(b, lw + sw, lh + sh, &x, &y);
    if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
-     evas_object_resize(b->bryce, MIN(lw + sw, maxw), b->size);
+     w = MIN(lw + sw, maxw), h = b->size;
    else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
-     evas_object_resize(b->bryce, b->size, MIN(lh + sh, maxh));
-   _bryce_position(b, lw + sw, lh + sh);
+     w = b->size, h = MIN(lh + sh, maxh);
+   efx_resize(b->bryce, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(x, y), w, h, 0.1, NULL, NULL);
    b->size_changed = 0;
 }
 
@@ -339,6 +347,25 @@ _bryce_restack(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_in
      e_comp_object_util_type_set(b->bryce, _bryce_shadow_type(b));
 }
 
+static Eina_Bool
+_bryce_moveresize_save(void *data)
+{
+   Bryce *b = data;
+   int w, h;
+   int size;
+
+   b->save_timer = NULL;
+   evas_object_geometry_get(b->bryce, NULL, NULL, &w, &h);
+   if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+     size = h;
+   else
+     size = w;
+   if (b->size == size) return EINA_FALSE;
+   e_config_save_queue();
+   b->size = size;
+   return EINA_FALSE;
+}
+
 static void
 _bryce_moveresize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
@@ -353,14 +380,19 @@ _bryce_moveresize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event
         return;
      }
    evas_object_geometry_get(obj, &x, &y, &w, &h);
-   if (z_gadget_site_orient_get(b->site) == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+   if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
      size = h;
    else
      size = w;
 
    if (b->size != size)
-     e_config_save_queue();
-   b->size = size;
+     {
+        if (b->save_timer)
+          ecore_timer_reset(b->save_timer);
+        else
+          b->save_timer = ecore_timer_add(0.5, _bryce_moveresize_save, b);
+     }
+
    zone = e_comp_object_util_zone_get(obj);
    if (zone)
      {
@@ -495,6 +527,7 @@ _bryce_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *
    evas_object_del(b->autohide_event);
    E_FREE_FUNC(b->calc_job, ecore_job_del);
    E_FREE_FUNC(b->autohide_timer, ecore_timer_del);
+   ecore_timer_del(b->save_timer);
    eina_stringshare_del(b->name);
    EINA_LIST_FREE(b->popups, p)
      evas_object_event_callback_del(p, EVAS_CALLBACK_HIDE, _bryce_popup_hide);
@@ -562,6 +595,22 @@ _bryce_gadgets_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUS
 }
 
 static void
+_bryce_autosize_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   Bryce *b = data;
+
+   z_bryce_autosize_set(b->bryce, !b->autosize);
+}
+
+static void
+_bryce_autohide_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   Bryce *b = data;
+
+   z_bryce_autohide_set(b->bryce, !b->autohide);
+}
+
+static void
 _bryce_remove_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
 {
    Bryce *b = data;
@@ -570,6 +619,33 @@ _bryce_remove_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSE
    evas_object_hide(b->bryce);
    evas_object_del(b->bryce);
    e_config_save_queue();
+}
+
+static void
+_bryce_menu_populate(Bryce *b, E_Menu *m)
+{
+   E_Menu_Item *mi;
+
+   mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, "Autosize");
+   e_menu_item_check_set(mi, 1);
+   e_menu_item_toggle_set(mi, b->autosize);
+   e_menu_item_callback_set(mi, _bryce_autosize_menu, b);
+
+   mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, "Autohide");
+   e_menu_item_check_set(mi, 1);
+   e_menu_item_toggle_set(mi, b->autohide);
+   e_menu_item_callback_set(mi, _bryce_autohide_menu, b);
+
+   mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, "Gadgets");
+   e_menu_item_callback_set(mi, _bryce_gadgets_menu, b);
+
+   mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, "Remove");
+   e_util_menu_item_theme_icon_set(mi, "list-remove");
+   e_menu_item_callback_set(mi, _bryce_remove_menu, b);
 }
 
 static void
@@ -585,26 +661,23 @@ _bryce_owner_menu(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    e_menu_item_submenu_set(mi, subm);
    e_object_unref(E_OBJECT(subm));
 
-   mi = e_menu_item_new(subm);
-   e_menu_item_label_set(mi, "Gadgets");
-   e_menu_item_callback_set(mi, _bryce_gadgets_menu, b);
-
-   mi = e_menu_item_new(subm);
-   e_menu_item_label_set(mi, "Remove");
-   e_util_menu_item_theme_icon_set(mi, "list-remove");
-   e_menu_item_callback_set(mi, _bryce_remove_menu, b);
+   _bryce_menu_populate(b, subm);
 }
 
 static void
-_bryce_popup(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+_bryce_popup(Bryce *b, Evas_Object *popup)
 {
-   Bryce *b = data;
-
-   evas_object_event_callback_add(event_info, EVAS_CALLBACK_HIDE, _bryce_popup_hide, b);
+   evas_object_event_callback_add(popup, EVAS_CALLBACK_HIDE, _bryce_popup_hide, b);
    b->autohide_blocked++;
-   b->popups = eina_list_append(b->popups, event_info);
+   b->popups = eina_list_append(b->popups, popup);
    if (b->autohide)
      _bryce_autohide_show(b);
+}
+
+static void
+_bryce_gadget_popup(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   _bryce_popup(data, event_info);
 }
 
 static void
@@ -681,21 +754,21 @@ _bryce_create(Bryce *b, Evas_Object *parent)
 
    evas_object_smart_callback_add(b->site, "gadget_style_menu", _bryce_style_menu, b);
    evas_object_smart_callback_add(b->site, "gadget_owner_menu", _bryce_owner_menu, b);
-   evas_object_smart_callback_add(b->site, "gadget_popup", _bryce_popup, b);
+   evas_object_smart_callback_add(b->site, "gadget_popup", _bryce_gadget_popup, b);
 
    evas_object_clip_set(bryce, e_comp_zone_number_get(b->zone)->bg_clip_object);
    _bryce_autohide_setup(b);
    _bryce_autosize(b);
 }
 
-static void
+static Eina_Bool
 _bryce_act_resize(E_Object *obj, const char *params, E_Binding_Event_Wheel *ev)
 {
    Bryce *b;
    int step = 4;
    char buf[64];
 
-   if (obj->type != Z_BRYCE_TYPE) return;
+   if (obj->type != Z_BRYCE_TYPE) return EINA_FALSE;
    if (params && params[0])
      {
         step = strtol(params, NULL, 10);
@@ -716,6 +789,24 @@ _bryce_act_resize(E_Object *obj, const char *params, E_Binding_Event_Wheel *ev)
    b->size_changed = 1;
    if (!b->calc_job)
      b->calc_job = ecore_job_add((Ecore_Cb)_bryce_autosize, b);
+   return EINA_TRUE;
+}
+
+static Eina_Bool
+_bryce_act_menu(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev)
+{
+   Bryce *b;
+   E_Menu *m;
+   int x, y;
+
+   if (obj->type != Z_BRYCE_TYPE) return EINA_FALSE;
+   b = e_object_data_get(obj);
+   m = e_menu_new();
+   _bryce_menu_populate(b, m);
+   evas_pointer_canvas_xy_get(e_comp->evas, &x, &y);
+   e_menu_activate_mouse(m, e_zone_current_get(), x, y, 1, 1, E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
+   _bryce_popup(b, m->comp_object);
+   return EINA_TRUE;
 }
 
 Z_API Evas_Object *
@@ -847,6 +938,10 @@ z_bryce_init(void)
    e_action_predef_name_set(D_("Bryces"), D_("Resize Bryce"), "bryce_resize", NULL, "syntax: step, example: 4", 1);
    resize_act->func.go_wheel = _bryce_act_resize;
 
+   menu_act = e_action_add("bryce_menu");
+   e_action_predef_name_set(D_("Bryces"), D_("Bryce menu"), "bryce_menu", NULL, NULL, 0);
+   menu_act->func.go_mouse = _bryce_act_menu;
+
    edd_bryce = E_CONFIG_DD_NEW("Bryce", Bryce);
    E_CONFIG_VAL(edd_bryce, Bryce, name, STR);
    E_CONFIG_VAL(edd_bryce, Bryce, style, STR);
@@ -895,6 +990,7 @@ z_bryce_shutdown(void)
         eina_stringshare_del(b->name);
         eina_stringshare_del(b->style);
         ecore_job_del(b->calc_job);
+        ecore_timer_del(b->save_timer);
         ecore_timer_del(b->autohide_timer);
         free(b->e_obj_inherit);
         free(b);

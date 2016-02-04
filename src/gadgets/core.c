@@ -738,26 +738,29 @@ _gadget_mouse_move(Z_Gadget_Config *zgc, int t EINA_UNUSED, Ecore_Event_Mouse_Mo
    return ECORE_CALLBACK_RENEW;
 }
 
-static void
+static Eina_Bool
 _gadget_act_resize_end(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
 
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
    zgc->moving = 0;
 
    E_FREE_FUNC(zgc->site->move_handler, ecore_event_handler_del);
+   return EINA_TRUE;
 }
 
-static void
+static Eina_Bool
 _gadget_act_move_end(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
    Eina_Bool recalc = EINA_FALSE;
 
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
    zgc->moving = 0;
@@ -773,37 +776,40 @@ _gadget_act_move_end(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Ev
      elm_box_recalculate(zgc->site->layout);
 
    E_FREE_FUNC(zgc->site->move_handler, ecore_event_handler_del);
+   return EINA_TRUE;
 }
 
-static void
+static Eina_Bool
 _gadget_act_move(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
 
-   if (obj->type != Z_GADGET_TYPE) return;
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
 
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
    zgc->moving = 1;
    if (!zgc->site->move_handler)
      zgc->site->move_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_gadget_mouse_move, zgc);
+   return EINA_TRUE;
 }
 
-static void
+static Eina_Bool
 _gadget_act_resize(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
 
-   if (obj->type != Z_GADGET_TYPE) return;
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
 
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
-   if (zgc->site->orient) return;
+   if (zgc->site->orient) return EINA_FALSE;
    zgc->resizing = 1;
    if (!zgc->site->move_handler)
      zgc->site->move_handler = ecore_event_handler_add(ECORE_EVENT_MOUSE_MOVE, (Ecore_Event_Handler_Cb)_gadget_mouse_resize, zgc);
+   return EINA_TRUE;
 }
 
 static void
@@ -829,17 +835,18 @@ _gadget_configure(Z_Gadget_Config *zgc)
    evas_object_event_callback_add(zgc->cfg_object, EVAS_CALLBACK_DEL, _gadget_act_configure_object_del, zgc);
 }
 
-static void
+static Eina_Bool
 _gadget_act_configure(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev EINA_UNUSED)
 {
    Z_Gadget_Config *zgc;
    Evas_Object *g;
 
-   if (obj->type != Z_GADGET_TYPE) return;
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
 
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
    _gadget_configure(zgc);
+   return EINA_TRUE;
 }
 
 static void
@@ -876,7 +883,7 @@ _gadget_menu_style(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
      zgc->site->style_cb(zgc->site->layout, style, zgc->gadget);
 }
 
-static void
+static Eina_Bool
 _gadget_act_menu(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_Mouse_Button *ev)
 {
    Z_Gadget_Config *zgc;
@@ -885,7 +892,7 @@ _gadget_act_menu(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_
    E_Menu *subm;
    int x, y;
 
-   if (obj->type != Z_GADGET_TYPE) return;
+   if (obj->type != Z_GADGET_TYPE) return EINA_FALSE;
 
    g = e_object_data_get(obj);
    zgc = evas_object_data_get(g, "__z_gadget");
@@ -966,6 +973,7 @@ _gadget_act_menu(E_Object *obj, const char *params EINA_UNUSED, E_Binding_Event_
                          x, y, 1, 1,
                          E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
    evas_object_smart_callback_call(zgc->site->layout, "gadget_popup", zgc->menu->comp_object);
+   return EINA_TRUE;
 }
 
 static Eina_Bool
