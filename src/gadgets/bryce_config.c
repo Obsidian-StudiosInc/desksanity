@@ -2,10 +2,18 @@
 #include "gadget.h"
 #include "bryce.h"
 
+#define DEFAULT_AUTOSIZE EINA_TRUE
+#define DEFAULT_AUTOHIDE EINA_FALSE
+#define DEFAULT_LAYER E_LAYER_CLIENT_EDGE
+
 typedef struct Bryce_Info
 {
    Z_Gadget_Site_Anchor anchor;
    Z_Gadget_Site_Orient orient;
+   Eina_Stringshare *style;
+   Eina_Bool stack_under;
+   Eina_Bool autohide;
+   Eina_Bool autosize;
 } Bryce_Info;
 
 
@@ -29,12 +37,15 @@ setup_exists(Evas_Object *editor, Evas_Object *parent, Z_Gadget_Site_Anchor an)
 }
 
 static void
-_editor_bryce_add(Bryce_Info *bi, Evas_Object *obj, const char *style)
+_editor_bryce_add(Evas_Object *obj)
 {
    Evas_Object *b, *site;
    char buf[1024];
    const char *loc;
+   Bryce_Info *bi;
+   Z_Gadget_Site_Gravity gravity = Z_GADGET_SITE_GRAVITY_CENTER;
 
+   bi = evas_object_data_get(obj, "__bryce_info");
    if (bi->anchor & Z_GADGET_SITE_ANCHOR_TOP)
      loc = "top";
    if (bi->anchor & Z_GADGET_SITE_ANCHOR_BOTTOM)
@@ -44,14 +55,62 @@ _editor_bryce_add(Bryce_Info *bi, Evas_Object *obj, const char *style)
    if (bi->anchor & Z_GADGET_SITE_ANCHOR_RIGHT)
      loc = "right";
    snprintf(buf, sizeof(buf), "demo_%s", loc);
+   if (bi->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+     {
+        if (bi->anchor & Z_GADGET_SITE_ANCHOR_LEFT)
+          gravity = Z_GADGET_SITE_GRAVITY_LEFT;
+        else if (bi->anchor & Z_GADGET_SITE_ANCHOR_RIGHT)
+          gravity = Z_GADGET_SITE_GRAVITY_RIGHT;
+     }
+   else
+     {
+        if (bi->anchor & Z_GADGET_SITE_ANCHOR_TOP)
+          gravity = Z_GADGET_SITE_GRAVITY_TOP;
+        else if (bi->anchor & Z_GADGET_SITE_ANCHOR_BOTTOM)
+          gravity = Z_GADGET_SITE_GRAVITY_BOTTOM;
+     }
    b = z_bryce_add(e_comp->elm, buf, bi->orient, bi->anchor);
    site = z_bryce_site_get(b);
 
    z_gadget_site_gadget_add(site, "Start", 0);
    z_gadget_site_gadget_add(site, "Clock", 0);
    z_gadget_site_gadget_add(site, "IBar", 0);
-   z_bryce_style_set(b, style);
+   z_gadget_site_gravity_set(site, gravity);
+   z_bryce_style_set(b, bi->style);
+   z_bryce_autohide_set(b, bi->autohide);
+   z_bryce_autosize_set(b, bi->autosize);
+   evas_object_layer_set(b, bi->stack_under ? E_LAYER_DESKTOP : E_LAYER_CLIENT_EDGE);
    evas_object_del(obj);
+}
+
+static void
+_editor_finish(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   _editor_bryce_add(data);
+}
+
+static void
+_editor_autosize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+  Bryce_Info *bi = data;
+
+  bi->autosize = !bi->autosize;
+}
+
+static void
+_editor_autohide(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+  Bryce_Info *bi = data;
+
+  bi->autohide = !bi->autohide;
+}
+
+static void
+_editor_stacking(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+  Bryce_Info *bi = data;
+
+  bi->stack_under = !bi->stack_under;
 }
 
 static void
@@ -60,7 +119,7 @@ _editor_style_click(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *eve
    const char *g;
    char style[1024] = {0};
    Bryce_Info *bi;
-   Evas_Object *ly;
+   Evas_Object *ly, *box, *ck, *button;
 
    ly = elm_object_part_content_get(obj, "e.swallow.content");
    elm_layout_file_get(ly, NULL, &g);
@@ -68,7 +127,44 @@ _editor_style_click(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *eve
    memcpy(style, g, MIN(sizeof(style) - 1, strchr(g, '/') - g));
 
    bi = evas_object_data_get(data, "__bryce_info");
-   _editor_bryce_add(bi, data, style);
+   bi->style = eina_stringshare_add(style);
+   e_theme_edje_object_set(data, NULL, "z/bryce/editor/finish");
+   elm_object_part_text_set(data, "e.text", _("Finishing touches... (4/4)"));
+   box = elm_box_add(data);
+   elm_box_padding_set(box, 0, 20 * e_scale);
+
+   ck = elm_check_add(box);
+   E_ALIGN(ck, 0, 0.5);
+   evas_object_show(ck);
+   elm_object_text_set(ck, _("Automatically size based on contents"));
+   evas_object_smart_callback_add(ck, "changed", _editor_autosize, bi);
+   elm_box_pack_end(box, ck);
+
+   ck = elm_check_add(box);
+   E_ALIGN(ck, 0, 0.5);
+   evas_object_show(ck);
+   elm_object_text_set(ck, _("Automatically hide"));
+   evas_object_smart_callback_add(ck, "changed", _editor_autohide, bi);
+   elm_box_pack_end(box, ck);
+
+   ck = elm_check_add(box);
+   E_ALIGN(ck, 0, 0.5);
+   evas_object_show(ck);
+   elm_object_text_set(ck, _("Do not stack above windows"));
+   evas_object_smart_callback_add(ck, "changed", _editor_stacking, bi);
+   elm_box_pack_end(box, ck);
+
+   //ck = elm_check_add(box);
+   //elm_object_text_set(ck, _("Allow windows to overlap"));
+   //evas_object_smart_callback_add(ck, "changed", _editor_overlap, data);
+   //elm_box_pack_end(box, ck);
+
+   elm_object_part_content_set(data, "e.swallow.content", box);
+
+   button = elm_button_add(data);
+   elm_object_text_set(button, _("Finish!"));
+   evas_object_smart_callback_add(button, "clicked", _editor_finish, data);
+   elm_object_part_content_set(data, "e.swallow.button", button);
 }
 
 static void
@@ -82,6 +178,7 @@ _editor_style(Evas_Object *obj)
    evas_object_geometry_get(obj, NULL, NULL, &w, NULL);
    box = elm_box_add(obj);
    e_theme_edje_object_set(obj, NULL, "z/bryce/editor/style");
+   elm_object_part_text_set(obj, "e.text", _("Choose style (3/4)"));
    elm_box_homogeneous_set(box, 1);
    elm_box_padding_set(box, 0, 20 * e_scale);
    l = elm_theme_group_base_list(NULL, "z/bryce/");
@@ -118,7 +215,10 @@ _editor_style(Evas_Object *obj)
 static void
 _editor_info_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
-   free(data);
+   Bryce_Info *bi = data;
+
+   eina_stringshare_del(bi->style);
+   free(bi);
 }
 
 static void
@@ -143,6 +243,7 @@ _editor_add(Evas_Object *obj, Z_Gadget_Site_Orient orient, Z_Gadget_Site_Anchor 
         snprintf(buf, sizeof(buf), "z/bryce/editor/side/%s",
           orient == Z_GADGET_SITE_ORIENT_HORIZONTAL ? "horizontal" : "vertical");
         e_theme_edje_object_set(obj, NULL, buf);
+        elm_object_part_text_set(obj, "e.text", _("Choose position (2/4)"));
         if (an & Z_GADGET_SITE_ANCHOR_BOTTOM)
           elm_object_signal_emit(obj, "e,state,bottom", "e");
         else if (an & Z_GADGET_SITE_ANCHOR_RIGHT)
@@ -195,6 +296,7 @@ z_bryce_editor_add(Evas_Object *parent)
    editor = elm_layout_add(parent);
    evas_object_data_set(editor, "__bryce_editor_site", parent);
    e_theme_edje_object_set(editor, NULL, "z/bryce/editor/side");
+   elm_object_part_text_set(editor, "e.text", _("Choose screen edge (1/4)"));
 
    setup_exists(editor, parent, 0);
 

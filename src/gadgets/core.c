@@ -302,6 +302,7 @@ _site_move(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info E
 
    evas_object_geometry_get(obj, &x, &y, &w, &h);
    evas_object_geometry_set(zgs->events, x, y, w, h);
+   evas_object_raise(zgs->events);
    if (!zgs->orient)
      evas_object_smart_need_recalculate_set(zgs->layout, 1);
 }
@@ -322,7 +323,6 @@ _site_layout_orient(Evas_Object *o, Z_Gadget_Site *zgs)
    xx = x;
    yy = y;
 
-   /* do layout for rest of gadgets now to avoid fixed gadgets */
    if (zgs->gravity % 2)//left/top
      {
         EINA_LIST_FOREACH(zgs->gadgets, l, zgc)
@@ -1384,7 +1384,9 @@ Z_API void
 z_gadget_site_gravity_set(Evas_Object *obj, Z_Gadget_Site_Gravity gravity)
 {
    ZGS_GET(obj);
+   if (zgs->gravity == gravity) return;
    zgs->gravity = gravity;
+   _gravity_apply(zgs->layout, gravity);
    evas_object_smart_need_recalculate_set(zgs->layout, 1);
 }
 
