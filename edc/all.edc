@@ -1,0 +1,3 @@
+#include "macros.edc"
+#include "bryce.edc"
+#include "bryce_editor.edc"
