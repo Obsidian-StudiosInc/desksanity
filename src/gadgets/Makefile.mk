@@ -16,4 +16,8 @@ src/gadgets/clock/clock.h \
 src/gadgets/clock/mod.c \
 src/gadgets/clock/time.c \
 src/gadgets/ibar/ibar.c \
-src/gadgets/ibar/ibar.h
+src/gadgets/ibar/ibar.h \
+src/gadgets/wireless/connman.c \
+src/gadgets/wireless/mod.c \
+src/gadgets/wireless/wireless.c \
+src/gadgets/wireless/wireless.h

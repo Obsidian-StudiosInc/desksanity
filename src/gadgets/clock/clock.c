@@ -178,34 +178,7 @@ clock_popup_new(Instance *inst)
    evas_object_show(oi);
 
    elm_object_content_set(inst->popup, inst->o_table);
-   elm_ctxpopup_hover_parent_set(inst->popup, e_comp->elm);
-   evas_object_layer_set(inst->popup, evas_object_layer_get(inst->o_clock));
-   {
-      int x, y, w, h;
-      Z_Gadget_Site_Orient orient;
-      Z_Gadget_Site_Anchor an;
-      Evas_Object *site;
-
-      evas_object_geometry_get(inst->o_clock, &x, &y, &w, &h);
-      site = z_gadget_site_get(inst->o_clock);
-      orient = z_gadget_site_orient_get(site);
-      an = z_gadget_site_anchor_get(site);
-      if (an & Z_GADGET_SITE_ANCHOR_TOP)
-        y += h;
-      if (an & Z_GADGET_SITE_ANCHOR_LEFT)
-        x += w;
-      if (orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
-        {
-           x += w / 2;
-           elm_ctxpopup_direction_priority_set(inst->popup, ELM_CTXPOPUP_DIRECTION_UP, ELM_CTXPOPUP_DIRECTION_DOWN, 0, 0);
-        }
-      else if (orient == Z_GADGET_SITE_ORIENT_VERTICAL)
-        {
-           y += h / 2;
-           elm_ctxpopup_direction_priority_set(inst->popup, ELM_CTXPOPUP_DIRECTION_RIGHT, ELM_CTXPOPUP_DIRECTION_LEFT, 0, 0);
-        }
-      evas_object_move(inst->popup, x, y);
-   }
+   z_gadget_util_ctxpopup_place(inst->o_clock, inst->popup);
    evas_object_show(inst->popup);
 }
 

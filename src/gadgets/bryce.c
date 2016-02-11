@@ -408,17 +408,19 @@ _bryce_moveresize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event
    zone = e_comp_object_util_zone_get(obj);
    if (zone)
      {
+        Eina_Bool vertical = b->orient == Z_GADGET_SITE_ORIENT_VERTICAL;
         if (b->zone_obstacles)
           {
              Eina_List *l;
              E_Zone_Obstacle *obs;
 
              EINA_LIST_FOREACH(b->zone_obstacles, l, obs)
-               e_zone_obstacle_modify(obs, &(Eina_Rectangle){b->x, b->y, w, h});
+               e_zone_obstacle_modify(obs, &(Eina_Rectangle){b->x, b->y, w, h}, vertical);
           }
         else
           b->zone_obstacles = eina_list_append(b->zone_obstacles,
-            e_zone_obstacle_add(e_comp_object_util_zone_get(obj), NULL, &(Eina_Rectangle){b->x, b->y, w, h}));
+            e_zone_obstacle_add(e_comp_object_util_zone_get(obj), NULL,
+              &(Eina_Rectangle){b->x, b->y, w, h}, vertical));
      }
    else
      {

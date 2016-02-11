@@ -1573,6 +1573,37 @@ z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style)
    return prev;
 }
 
+Z_API void
+z_gadget_util_ctxpopup_place(Evas_Object *g, Evas_Object *ctx)
+{
+   int x, y, w, h;
+   Z_Gadget_Config *zgc;
+
+   EINA_SAFETY_ON_NULL_RETURN(g);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN(zgc);
+
+   elm_ctxpopup_hover_parent_set(ctx, e_comp->elm);
+   evas_object_layer_set(ctx, evas_object_layer_get(g));
+
+   evas_object_geometry_get(g, &x, &y, &w, &h);
+   if (zgc->site->anchor & Z_GADGET_SITE_ANCHOR_TOP)
+     y += h;
+   if (zgc->site->anchor & Z_GADGET_SITE_ANCHOR_LEFT)
+     x += w;
+   if (zgc->site->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
+     {
+        x += w / 2;
+        elm_ctxpopup_direction_priority_set(ctx, ELM_CTXPOPUP_DIRECTION_UP, ELM_CTXPOPUP_DIRECTION_DOWN, 0, 0);
+     }
+   else if (zgc->site->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
+     {
+        y += h / 2;
+        elm_ctxpopup_direction_priority_set(ctx, ELM_CTXPOPUP_DIRECTION_RIGHT, ELM_CTXPOPUP_DIRECTION_LEFT, 0, 0);
+     }
+   evas_object_move(ctx, x, y);
+}
+
 /* FIXME */
 static void
 gadget_save(void)

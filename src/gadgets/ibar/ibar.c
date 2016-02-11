@@ -1,6 +1,13 @@
 #include "gadget.h"
 #include "ibar.h"
 
+#pragma GCC diagnostic ignored "-Wall"
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 typedef struct _Instance  Instance;
 typedef struct _IBar      IBar;
 typedef struct _IBar_Icon IBar_Icon;
