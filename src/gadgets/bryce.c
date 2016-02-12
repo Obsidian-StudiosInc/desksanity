@@ -63,6 +63,14 @@ static E_Action *menu_act;
    if (!b) abort()
 
 static void
+_bryce_obstacle_del(void *obs)
+{
+   Bryce *b = e_object_data_get(obs);
+
+   b->zone_obstacles = eina_list_remove(b->zone_obstacles, obs);
+}
+
+static void
 _bryce_autohide_end(void *data, Efx_Map_Data *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
    Bryce *b = data;
@@ -218,12 +226,12 @@ _bryce_autosize(Bryce *b)
         elm_object_content_set(b->scroller, b->site);
      }
    evas_object_size_hint_min_get(b->site, &sw, &sh);
-   evas_object_size_hint_min_get(b->layout, &lw, &lh);
+   edje_object_size_min_calc(elm_layout_edje_get(b->layout), &lw, &lh);
    _bryce_position(b, lw + sw, lh + sh, &x, &y);
    if (b->orient == Z_GADGET_SITE_ORIENT_HORIZONTAL)
-     w = MIN(lw + sw, maxw), h = b->size * e_scale;
+     w = MIN(MAX(lw + sw, b->size * e_scale), maxw), h = b->size * e_scale;
    else if (b->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
-     w = b->size * e_scale, h = MIN(lh + sh, maxh);
+     w = b->size * e_scale, h = MIN(MAX(lh + sh, b->size * e_scale), maxh);
    efx_resize(b->bryce, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(x, y), w, h, 0.1, NULL, NULL);
    b->size_changed = 0;
 }
@@ -418,9 +426,15 @@ _bryce_moveresize(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event
                e_zone_obstacle_modify(obs, &(Eina_Rectangle){b->x, b->y, w, h}, vertical);
           }
         else
-          b->zone_obstacles = eina_list_append(b->zone_obstacles,
-            e_zone_obstacle_add(e_comp_object_util_zone_get(obj), NULL,
-              &(Eina_Rectangle){b->x, b->y, w, h}, vertical));
+          {
+             void *obs;
+
+             obs = e_zone_obstacle_add(e_comp_object_util_zone_get(obj), NULL,
+                    &(Eina_Rectangle){b->x, b->y, w, h}, vertical);
+             e_object_data_set(obs, b);
+             E_OBJECT_DEL_SET(obs, _bryce_obstacle_del);
+             b->zone_obstacles = eina_list_append(b->zone_obstacles, obs);
+          }
      }
    else
      {

@@ -46,21 +46,38 @@ typedef struct
    const char *path;
    Eldbus_Proxy *proxy;
 
+   /* Private */
+   struct
+   {
+      Eldbus_Pending *connect;
+      Eldbus_Pending *disconnect;
+      Eldbus_Pending *remov;
+      void *data;
+   } pending;
+   Eldbus_Signal_Handler *handler;
+
    /* Properties */
    Eina_Stringshare *name;
-   Eina_Array *security;
+   Wireless_Network_Security security;
    Connman_State state;
    Connman_Service_Type type;
    uint8_t strength;
-
-   /* Private */
-   struct
-     {
-        Eldbus_Pending *connect;
-        Eldbus_Pending *disconnect;
-        Eldbus_Pending *remov;
-        void *data;
-     } pending;
+   unsigned int method;
+   Eina_Stringshare *address;
+   Eina_Stringshare *gateway;
+   union
+   {
+      struct
+      {
+         Eina_Stringshare *netmask;
+      } v4;
+      struct
+      {
+         Eina_Stringshare *prefixlength;
+         Wireless_Network_IPv6_Privacy privacy;
+      } v6;
+   } ip;
+   Eina_Bool ipv6 : 1;
 } Connman_Service;
 
 typedef struct Connman_Field
@@ -85,20 +102,81 @@ static Eina_Inlist *connman_services;
 static unsigned int connman_services_count;
 static Eldbus_Service_Interface *agent_iface;
 
-static Connman_State connman_state;
+static Connman_Service *connman_current_service;
 static Eina_Bool connman_offline;
 static Eina_Bool connman_powered;
+
+/* connman -> wireless */
+static Eina_Hash *connman_services_map;
+
+
+static Wireless_Network_State
+_connman_wifi_state_convert(Connman_State state)
+{
+   Wireless_Network_State wifi_state;
+   switch (state)
+     {
+      case CONNMAN_STATE_ASSOCIATION:
+      case CONNMAN_STATE_CONFIGURATION:
+        wifi_state = WIRELESS_NETWORK_STATE_CONFIGURING;
+        break;
+      case CONNMAN_STATE_READY:
+        wifi_state = WIRELESS_NETWORK_STATE_CONNECTED;
+        break;
+      case CONNMAN_STATE_ONLINE:
+        wifi_state = WIRELESS_NETWORK_STATE_ONLINE;
+        break;
+      case CONNMAN_STATE_FAILURE:
+        wifi_state = WIRELESS_NETWORK_STATE_FAILURE;
+        break;
+      case CONNMAN_STATE_NONE:
+      case CONNMAN_STATE_OFFLINE:
+      case CONNMAN_STATE_IDLE:
+      case CONNMAN_STATE_DISCONNECT:
+      default:
+        wifi_state = WIRELESS_NETWORK_STATE_NONE;
+     }
+   return wifi_state;
+}
+
+static Wireless_Connection *
+_connman_service_convert(Connman_Service *cs)
+{
+   Wireless_Connection *wn;
+
+   wn = E_NEW(Wireless_Connection, 1);
+   memcpy(wn, &cs->name, sizeof(Wireless_Connection));
+   wn->state = _connman_wifi_state_convert(cs->state);
+   return wn;
+}
+
+static void
+connman_update_current_network(Connman_Service *cs)
+{
+   connman_current_service = cs;
+   if (eina_hash_population(connman_services_map))
+     wireless_wifi_current_network_set(eina_hash_find(connman_services_map, &cs));
+}
 
 static void
 connman_update_networks(void)
 {
    Eina_Array *arr;
    Connman_Service *cs;
+   Wireless_Connection *wn;
 
+   eina_hash_free_buckets(connman_services_map);
    arr = eina_array_new(connman_services_count);
    EINA_INLIST_FOREACH(connman_services, cs)
-     eina_array_push(arr, &cs->name);
+     {
+        wn = _connman_service_convert(cs);
+        eina_hash_add(connman_services_map, &cs, wn);
+        eina_array_push(arr, wn);
+     }
    arr = wireless_wifi_networks_set(arr);
+   if (connman_current_service)
+     connman_update_current_network(connman_current_service);
+   if (!arr) return;
    eina_array_free(arr);
 }
 
@@ -106,38 +184,6 @@ static void
 connman_update_airplane_mode(Eina_Bool offline)
 {
    wireless_airplane_mode_set(offline);
-}
-
-static void
-connman_update_state(Connman_State state)
-{
-   Wifi_State wifi_state;
-
-   if (connman_state == state) return;
-   connman_state = state;
-   switch (connman_state)
-     {
-      case CONNMAN_STATE_ASSOCIATION:
-      case CONNMAN_STATE_CONFIGURATION:
-        wifi_state = WIFI_NETWORK_STATE_CONFIGURING;
-        break;
-      case CONNMAN_STATE_READY:
-        wifi_state = WIFI_NETWORK_STATE_CONNECTED;
-        break;
-      case CONNMAN_STATE_ONLINE:
-        wifi_state = WIFI_NETWORK_STATE_ONLINE;
-        break;
-      case CONNMAN_STATE_FAILURE:
-        wifi_state = WIFI_NETWORK_STATE_FAILURE;
-        break;
-      case CONNMAN_STATE_NONE:
-      case CONNMAN_STATE_OFFLINE:
-      case CONNMAN_STATE_IDLE:
-      case CONNMAN_STATE_DISCONNECT:
-      default:
-        wifi_state = WIFI_NETWORK_STATE_NONE;
-     }
-   wireless_wifi_state_set(wifi_state);
 }
 
 static Connman_State
@@ -169,28 +215,27 @@ str_to_type(const char *s)
 {
    if (!strcmp(s, "ethernet"))
      return CONNMAN_SERVICE_TYPE_ETHERNET;
-   else if (!strcmp(s, "wifi"))
+   if (!strcmp(s, "wifi"))
      return CONNMAN_SERVICE_TYPE_WIFI;
-   else if (!strcmp(s, "bluetooth"))
+   if (!strcmp(s, "bluetooth"))
      return CONNMAN_SERVICE_TYPE_BLUETOOTH;
-   else if (!strcmp(s, "cellular"))
+   if (!strcmp(s, "cellular"))
      return CONNMAN_SERVICE_TYPE_CELLULAR;
 
    DBG("Unknown type %s", s);
    return CONNMAN_SERVICE_TYPE_NONE;
 }
 
-static void
-_connman_service_security_array_clean(Connman_Service *cs)
+static Wireless_Network_Security
+str_to_security(const char *s)
 {
-   const char *item;
-   Eina_Array_Iterator itr;
-   unsigned int i;
-
-   EINA_ARRAY_ITER_NEXT(cs->security, i, item, itr)
-     eina_stringshare_del(item);
-
-   eina_array_clean(cs->security);
+   if (!strcmp(s, "none")) return WIRELESS_NETWORK_SECURITY_NONE;
+   if (!strcmp(s, "wep")) return WIRELESS_NETWORK_SECURITY_WEP;
+   if (!strcmp(s, "psk")) return WIRELESS_NETWORK_SECURITY_PSK;
+   if (!strcmp(s, "ieee8021x")) return WIRELESS_NETWORK_SECURITY_IEEE8021X;
+   if (!strcmp(s, "wps")) return WIRELESS_NETWORK_SECURITY_WPS;
+   CRI("UNKNOWN TYPE %s", s);
+   return WIRELESS_NETWORK_SECURITY_NONE;
 }
 
 static void
@@ -215,12 +260,18 @@ _connman_service_free(Connman_Service *cs)
         eldbus_pending_cancel(cs->pending.remov);
         free(cs->pending.data);
      }
+   eina_stringshare_del(cs->address);
+   eina_stringshare_del(cs->gateway);
+   if (cs->ipv6)
+     eina_stringshare_del(cs->ip.v6.prefixlength);
+   else
+     eina_stringshare_del(cs->ip.v4.netmask);
 
    eina_stringshare_del(cs->name);
-   _connman_service_security_array_clean(cs);
-   eina_array_free(cs->security);
    eina_stringshare_del(cs->path);
+   eldbus_signal_handler_del(cs->handler);
    obj = eldbus_proxy_object_get(cs->proxy);
+   DBG("service free %p || proxy %p", cs, cs->proxy);
    eldbus_proxy_unref(cs->proxy);
    eldbus_object_unref(obj);
 
@@ -271,20 +322,55 @@ _connman_service_parse_prop_changed(Connman_Service *cs, const char *prop_name, 
    else if (!strcmp(prop_name, "Security"))
      {
         const char *s;
+        Eldbus_Message_Iter *itr_array;
 
-        DBG("Old security count: %d",
-            cs->security ? eina_array_count(cs->security) : 0);
-        if (cs->security)
-          _connman_service_security_array_clean(cs);
-        else
-          cs->security = eina_array_new(5);
-        
-        while (eldbus_message_iter_get_and_next(value, 's', &s))
+        DBG("Old security: %u", cs->security);
+        cs->security = WIRELESS_NETWORK_SECURITY_NONE;
+
+        EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(value, "as",
+                                                                        &itr_array));
+        while (eldbus_message_iter_get_and_next(itr_array, 's', &s))
+          cs->security |= str_to_security(s);
+        DBG("New security %u", cs->security);
+     }
+   else if (!strcmp(prop_name, "IPv4"))
+     {
+        Eldbus_Message_Iter *array, *dict;
+
+        EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(value, "a{sv}", &array));
+        while (eldbus_message_iter_get_and_next(array, 'e', &dict))
           {
-             eina_array_push(cs->security, eina_stringshare_add(s));
-             DBG("Push %s", s);
+             Eldbus_Message_Iter *var;
+             const char *name, *val;
+
+             EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(dict, "sv", &name, &var));
+             if (!strcmp(name, "Method"))
+               {
+                  cs->method = WIRELESS_NETWORK_IPV4_METHOD_OFF;
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  if (!strcmp(val, "off"))
+                    cs->method = WIRELESS_NETWORK_IPV4_METHOD_OFF;
+                  else if (!strcmp(val, "dhcp"))
+                    cs->method = WIRELESS_NETWORK_IPV4_METHOD_DHCP;
+                  else if (!strcmp(val, "manual"))
+                    cs->method = WIRELESS_NETWORK_IPV4_METHOD_MANUAL;
+               }
+             else if (!strcmp(name, "Address"))
+               {
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  eina_stringshare_replace(&cs->address, val);
+               }
+             else if (!strcmp(name, "Netmask"))
+               {
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  eina_stringshare_replace(&cs->ip.v4.netmask, val);
+               }
+             else if (!strcmp(name, "Gateway"))
+               {
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  eina_stringshare_replace(&cs->gateway, val);
+               }
           }
-        DBG("New security count: %d", eina_array_count(cs->security));
      }
 }
 
@@ -301,6 +387,8 @@ _connman_service_prop_dict_changed(Connman_Service *cs, Eldbus_Message_Iter *pro
         if (eldbus_message_iter_arguments_get(dict, "sv", &name, &var))
           _connman_service_parse_prop_changed(cs, name, var);
      }
+   if (cs->state == CONNMAN_STATE_ONLINE)
+     connman_update_current_network(cs);
 }
 
 static void
@@ -312,6 +400,8 @@ _connman_service_property(void *data, const Eldbus_Message *msg)
 
    if (eldbus_message_arguments_get(msg, "sv", &name, &var))
      _connman_service_parse_prop_changed(cs, name, var);
+   if (cs->state == CONNMAN_STATE_ONLINE)
+     connman_update_current_network(cs);
 }
 
 static void
@@ -325,13 +415,13 @@ _connman_service_new(const char *path, Eldbus_Message_Iter *props)
 
    obj = eldbus_object_get(dbus_conn, CONNMAN_BUS_NAME, path);
    cs->proxy = eldbus_proxy_get(obj, CONNMAN_SERVICE_IFACE);
-   eldbus_proxy_signal_handler_add(cs->proxy, "PropertyChanged",
+   cs->handler = eldbus_proxy_signal_handler_add(cs->proxy, "PropertyChanged",
                                   _connman_service_property, cs);
 
    _connman_service_prop_dict_changed(cs, props);
    connman_services = eina_inlist_append(connman_services, EINA_INLIST_GET(cs));
    connman_services_count++;
-   DBG("Added service: %p %s", cs, path);
+   DBG("Added service: %p %s || proxy %p", cs, path, cs->proxy);
 }
 
 static void
@@ -374,7 +464,7 @@ _connman_manager_parse_prop_changed(const char *name, Eldbus_Message_Iter *value
         if (!eldbus_message_iter_arguments_get(value, "s", &state))
           return EINA_FALSE;
         DBG("New state: %s", state);
-        connman_update_state(str_to_state(state));
+        //connman_update_state(str_to_state(state));
      }
    else if (!strcmp(name, "OfflineMode"))
      {
@@ -765,6 +855,7 @@ _connman_end(void)
 {
    Eldbus_Object *obj;
 
+   if (!proxy_manager) return;
    eldbus_proxy_call(proxy_manager, "UnregisterAgent", NULL, NULL, -1, "o", CONNMAN_AGENT_PATH);
 
    while (connman_services)
@@ -799,6 +890,7 @@ EINTERN void
 connman_init(void)
 {
    if (_connman_log_dom > -1) return;
+   connman_services_map = eina_hash_pointer_new(free);
    eldbus_name_owner_changed_callback_add(dbus_conn, CONNMAN_BUS_NAME,
                                          _connman_name_owner_changed,
                                          NULL, EINA_TRUE);
@@ -809,6 +901,7 @@ EINTERN void
 connman_shutdown(void)
 {
    E_FREE_FUNC(agent_iface, eldbus_service_object_unregister);
+   E_FREE_FUNC(connman_services_map, eina_hash_free);
    _connman_end();
    eldbus_name_owner_changed_callback_del(dbus_conn, CONNMAN_BUS_NAME, _connman_name_owner_changed, NULL);
    eina_log_domain_unregister(_connman_log_dom);

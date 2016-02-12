@@ -166,6 +166,14 @@ _gadget_reparent(Z_Gadget_Site *zgs, Z_Gadget_Config *zgc)
 }
 
 static void
+_gadget_popup(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   Z_Gadget_Site *zgs = data;
+
+   evas_object_smart_callback_call(zgs->layout, "gadget_popup", event_info);
+}
+
+static void
 _gadget_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Z_Gadget_Config *zgc = data;
@@ -211,6 +219,7 @@ _gadget_object_create(Z_Gadget_Config *zgc)
    zgc->e_obj_inherit = E_OBJECT_ALLOC(E_Object, Z_GADGET_TYPE, _gadget_object_free);
    e_object_data_set(zgc->e_obj_inherit, g);
    zgc->gadget = zgc->display = g;
+   evas_object_smart_callback_add(g, "gadget_popup", _gadget_popup, zgc->site);
    evas_object_data_set(g, "__z_gadget", zgc);
    if (zgc->site->style_cb)
      zgc->site->style_cb(zgc->site->layout, zgc->style.name, g);
@@ -856,6 +865,7 @@ _gadget_menu_remove(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUS
 
    evas_object_smart_callback_call(zgc->site->layout, "gadget_removed", zgc->display);
    zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
+   evas_object_smart_need_recalculate_set(zgc->site->layout, 1);
    _gadget_free(zgc);
    e_config_save_queue();
 }

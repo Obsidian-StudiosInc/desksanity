@@ -7,6 +7,7 @@ EINTERN Evas_Object *start_create(Evas_Object *parent, int *id EINA_UNUSED, Z_Ga
 EINTERN void clock_init(void);
 EINTERN void clock_shutdown(void);
 EINTERN void ibar_init(void);
+EINTERN void wireless_init(void);
 
 static Eina_List *handlers;
 static Evas_Object *rect;
@@ -160,6 +161,7 @@ gadget_demo(void)
    z_gadget_type_add("Start", start_create);
    clock_init();
    ibar_init();
+   wireless_init();
    z_gadget_init();
    z_bryce_init();
 

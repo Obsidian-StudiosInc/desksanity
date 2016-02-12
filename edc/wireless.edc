@@ -1,6 +1,7 @@
 group { name: "e/modules/wireless/wifi"; nomouse;
    images.image: "slot_horiz_top.png" COMP;
    images.image: "slot_horiz_bottom.png" COMP;
+   images.image: "wifi_shadow.png" COMP;
    images.image: "wifi_base.png" COMP;
    images.image: "wifi_sig_1.png" COMP;
    images.image: "wifi_sig_2.png" COMP;
@@ -10,6 +11,8 @@ group { name: "e/modules/wireless/wifi"; nomouse;
    images.image: "hole_tiny.png" COMP;
    images.image: "led_tiny_orange.png" COMP;
    images.image: "led_tiny_green.png" COMP;
+   images.image: "lock_locked.png" COMP;
+   images.image: "lock_insecure.png" COMP;
 
    script {
       public message(Msg_Type:type, id, ...) {
@@ -95,6 +98,16 @@ group { name: "e/modules/wireless/wifi"; nomouse;
          }
       }
 ///////////////////////
+      part { name: "wifi_shadow";
+         clip_to: "clip_wifi";
+         description { state: "default" 0.0;
+            aspect: (160/144) (160/144); aspect_preference: BOTH;
+            align: 0.5 1.0;
+            rel2.relative: 1.0 0.5;
+            rel2.to_y: "slot";
+            image.normal: "wifi_shadow.png";
+         }
+      }
       part { name: "wifi_base";
          clip_to: "clip_wifi";
          description { state: "default" 0.0;
@@ -157,6 +170,24 @@ group { name: "e/modules/wireless/wifi"; nomouse;
          description { state: "visible" 0.0;
             inherit: "default" 0.0;
             visible: 1;
+         }
+      }
+      part { name: "lock";
+         clip_to: "clip_wifi";
+         description { state: "default" 0.0; hid;
+            aspect: (160/144) (160/144); aspect_preference: BOTH;
+            align: 0.5 1.0;
+            rel2.relative: 1.0 0.5;
+            rel2.to_y: "slot";
+            image.normal: "lock_locked.png";
+            link.base: "e,state,unsecured" "e";
+         }
+         desc { "insecure"; inherit; vis;
+            image.normal: "lock_insecure.png";
+            link.base: "e,state,insecure" "e";
+         }
+         desc { "secure"; inherit; vis;
+            link.base: "e,state,secure" "e";
          }
       }
 //////////////////////////
@@ -501,59 +532,6 @@ group { name: "e/modules/wireless/bluetooth"; nomouse;
          action: STATE_SET "wifi" 0.0;
          target: "clip_exclam";
          target: "clip_bt";
-      }
-   }
-}
-
-group { name: "e/modules/wireless/end";
-   images.image: "glow_lock_locked.png" COMP;
-   images.image: "glow_lock_unlocked.png" COMP;
-   images.image: "glow_lock_double.png" COMP;
-   parts {
-      part { name: "base"; mouse_events: 0;
-         description { state: "default" 0.0;
-            image.normal: "glow_lock_locked.png";
-            max: 16 16;
-            aspect: 1.0 1.0; aspect_preference: BOTH;
-            visible: 0;
-         }
-         description { state: "none" 0.0;
-            inherit: "default" 0.0;
-            image.normal: "glow_lock_unlocked.png";
-            visible: 1;
-         }
-         description { state: "wep" 0.0;
-            inherit: "default" 0.0;
-            image.normal: "glow_lock_locked.png";
-            visible: 1;
-         }
-         description { state: "psk" 0.0;
-            inherit: "default" 0.0;
-            image.normal: "glow_lock_double.png";
-            visible: 1;
-         }
-      }
-   }
-   programs {
-      program {
-         signal: "e,security,off"; source: "e";
-         action: STATE_SET "default" 0.0;
-         target: "base";
-      }
-      program {
-         signal: "e,security,none"; source: "e";
-         action: STATE_SET "none" 0.0;
-         target: "base";
-      }
-      program {
-         signal: "e,security,wep"; source: "e";
-         action: STATE_SET "wep" 0.0;
-         target: "base";
-      }
-      program {
-         signal: "e,security,psk"; source: "e";
-         action: STATE_SET "psk" 0.0;
-         target: "base";
       }
    }
 }
