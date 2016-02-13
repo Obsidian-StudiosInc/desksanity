@@ -11,6 +11,7 @@ typedef enum
    WIRELESS_SERVICE_TYPE_WIFI,
    WIRELESS_SERVICE_TYPE_BLUETOOTH,
    WIRELESS_SERVICE_TYPE_CELLULAR,
+   WIRELESS_SERVICE_TYPE_LAST,
 } Wireless_Service_Type;
 
 typedef enum
@@ -53,13 +54,18 @@ typedef enum
    WIRELESS_NETWORK_IPV6_PRIVACY_PREFERRED,
 } Wireless_Network_IPv6_Privacy;
 
-typedef struct Wireless_Connection
+typedef struct Wireless_Network
 {
    Eina_Stringshare *name;
    Wireless_Network_Security security;
    Wireless_Network_State state;
    Wireless_Service_Type type;
    uint8_t strength;
+} Wireless_Network;
+
+typedef struct Wireless_Connection
+{
+   Wireless_Network *wn;
    unsigned int method;
    Eina_Stringshare *address;
    Eina_Stringshare *gateway;
@@ -80,8 +86,9 @@ typedef struct Wireless_Connection
 
 extern Eldbus_Connection *dbus_conn;
 
-EINTERN void wireless_wifi_network_state_set(Wireless_Network_State state);
-EINTERN void wireless_wifi_current_network_set(Wireless_Connection *wn);
+EINTERN void wireless_service_type_available_set(Eina_Bool *avail);
+EINTERN void wireless_service_type_enabled_set(Eina_Bool *enabled);
+EINTERN void wireless_wifi_current_networks_set(Wireless_Connection **current);
 EINTERN Eina_Array *wireless_wifi_networks_set(Eina_Array *networks);
 EINTERN void wireless_airplane_mode_set(Eina_Bool enabled);
 

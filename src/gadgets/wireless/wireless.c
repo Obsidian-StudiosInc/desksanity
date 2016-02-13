@@ -1,25 +1,57 @@
 #include "wireless.h"
 
+static const char *wireless_theme_groups[] =
+{
+  [WIRELESS_SERVICE_TYPE_ETHERNET] = "e/modules/wireless/ethernet",
+  [WIRELESS_SERVICE_TYPE_WIFI] = "e/modules/wireless/wifi",
+  [WIRELESS_SERVICE_TYPE_BLUETOOTH] = "e/modules/wireless/bluetooth",
+  [WIRELESS_SERVICE_TYPE_CELLULAR] = "e/modules/wireless/cellular",
+};
+
 typedef struct Instance
 {
+   Z_Gadget_Site_Orient orient;
    Evas_Object *box;
-   Evas_Object *wifi;
-   Evas_Object *popup;
-   Evas_Object *popup_list;
-   Eina_Hash *popup_items;
+   Evas_Object *icon[WIRELESS_SERVICE_TYPE_LAST];
+
+   struct
+   {
+      Evas_Object *popup;
+      Evas_Object *popup_list;
+      Eina_Hash *popup_items;
+      Wireless_Service_Type type;
+   } popup;
+
+   struct
+   {
+      Evas_Object *address;
+      Evas_Object *method;
+      Evas_Object *signal;
+      Wireless_Service_Type type;
+   } tooltip;
 } Instance;
 
-static Wireless_Network_State wifi_network_state;
-
 static Eina_Array *wifi_networks;
-static Wireless_Connection *wifi_current;
-static Eina_Bool wifi_enabled;
+static Wireless_Connection *wireless_current[WIRELESS_SERVICE_TYPE_LAST];
+static Eina_Bool wireless_type_enabled[WIRELESS_SERVICE_TYPE_LAST];
+static Eina_Bool wireless_type_available[WIRELESS_SERVICE_TYPE_LAST];
 static Eina_List *instances;
 
 static void
-_wifi_icon_init(Evas_Object *icon, Wireless_Connection *wn)
+_wifi_icon_signal(Evas_Object *icon, int state, int strength)
 {
    Edje_Message_Int_Set *msg;
+
+   msg = alloca(sizeof(Edje_Message_Int_Set) + sizeof(int));
+   msg->count = 2;
+   msg->val[0] = state;
+   msg->val[1] = strength;
+   edje_object_message_send(elm_layout_edje_get(icon), EDJE_MESSAGE_INT_SET, 1, msg);
+}
+
+static void
+_wifi_icon_init(Evas_Object *icon, Wireless_Network *wn)
+{
    int state = 0, strength = 0;
 
    if (wn)
@@ -27,24 +59,22 @@ _wifi_icon_init(Evas_Object *icon, Wireless_Connection *wn)
         state = wn->state;
         strength = wn->strength;
      }
-   msg = alloca(sizeof(Edje_Message_Int_Set) + sizeof(int));
-   msg->count = 2;
-   msg->val[0] = state;
-   msg->val[1] = strength;
-   edje_object_message_send(elm_layout_edje_get(icon), EDJE_MESSAGE_INT_SET, 1, msg);
+   _wifi_icon_signal(icon, state, strength);
 
    if (!wn)
      {
-        elm_object_signal_emit(icon, "e,state,disconnected", "e");
+        elm_object_signal_emit(icon, "e,state,default", "e");
         return;
      }
+   if (wn->state == WIRELESS_NETWORK_STATE_FAILURE)
+     {
+        elm_object_signal_emit(icon, "e,state,error", "e");
+        return;
+     }
+   elm_object_signal_emit(icon, "e,state,default", "e");
    switch (wn->type)
      {
-      case WIRELESS_SERVICE_TYPE_ETHERNET:
-        elm_object_signal_emit(icon, "e,state,ethernet", "e");
-        break;
       case WIRELESS_SERVICE_TYPE_WIFI:
-        elm_object_signal_emit(icon, "e,state,wifi", "e");
         if (wn->security > WIRELESS_NETWORK_SECURITY_WEP)
           elm_object_signal_emit(icon, "e,state,secure", "e");
         else if (wn->security == WIRELESS_NETWORK_SECURITY_WEP)
@@ -57,69 +87,91 @@ _wifi_icon_init(Evas_Object *icon, Wireless_Connection *wn)
 }
 
 static void
-_wifi_popup_network_click(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+_wireless_popup_network_click(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
 
 }
 
 static void
-_wifi_popup_list_populate(Instance *inst)
+_wireless_popup_list_populate(Instance *inst)
 {
    Eina_Iterator *it;
-   Wireless_Connection *wn;
+   Wireless_Network *wn;
 
    it = eina_array_iterator_new(wifi_networks);
    EINA_ITERATOR_FOREACH(it, wn)
      {
         Evas_Object *icon;
         Elm_Object_Item *item;
+        const char *name = wn->name;
 
-        if (wn->type != WIRELESS_SERVICE_TYPE_WIFI) continue;
-        icon = elm_layout_add(inst->popup_list);
-        e_theme_edje_object_set(icon, NULL, "e/modules/wireless/wifi");
+        if (wn->type != inst->popup.type) continue;
+        icon = elm_layout_add(inst->popup.popup_list);
+        e_theme_edje_object_set(icon, NULL, wireless_theme_groups[inst->popup.type]);
         _wifi_icon_init(icon, wn);
-        item = elm_list_item_append(inst->popup_list, wn->name, icon, NULL, _wifi_popup_network_click, inst);
-        eina_hash_add(inst->popup_items, &wn, item);
+        if (!name)
+          name = "<SSID hidden>";
+        item = elm_list_item_append(inst->popup.popup_list, name, icon, NULL, _wireless_popup_network_click, inst);
+        eina_hash_add(inst->popup.popup_items, &wn, item);
      }
    eina_iterator_free(it);
 }
 
 static void
-_wifi_popup_wifi_toggle(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+_wireless_popup_toggle(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
+
+   /* FIXME */
+   void connman_technology_enabled_set(Wireless_Service_Type type, Eina_Bool state);
+   
+   connman_technology_enabled_set(inst->popup.type, elm_check_state_get(obj));
 }
 
 static void
-_wifi_popup_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+_wireless_popup_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
-   E_FREE_FUNC(inst->popup_items, eina_hash_free);
-   inst->popup_list = NULL;
-   inst->popup = NULL;
+   E_FREE_FUNC(inst->popup.popup_items, eina_hash_free);
+   inst->popup.popup_list = NULL;
+   inst->popup.popup = NULL;
+   inst->popup.type = -1;
 }
 
 static Eina_Bool
-_wifi_popup_key()
+_wireless_popup_key()
 {
    return EINA_TRUE;
 }
 
 static void
-_wifi_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
+_wireless_gadget_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info)
 {
    Evas_Event_Mouse_Down *ev = event_info;
    Instance *inst = data;
    Evas_Object *ctx, *box, *list, *toggle;
+   int type;
+   const char *names[] =
+   {
+      "Ethernet",
+      "Wifi",
+      "Bluetooth",
+      "Cellular",
+   };
 
    if (ev->button != 1) return;
-   if (inst->popup)
+   for (type = 0; type < WIRELESS_SERVICE_TYPE_LAST; type++)
+     if (obj == inst->icon[type])
+       break;
+   if (inst->popup.popup)
      {
-        evas_object_hide(inst->popup);
-        evas_object_del(inst->popup);
-        return;
+        evas_object_hide(inst->popup.popup);
+        evas_object_del(inst->popup.popup);
+        if (inst->popup.type == type)
+          return;
      }
-   inst->popup_items = eina_hash_pointer_new(NULL);
+   inst->popup.type = type;
+   inst->popup.popup_items = eina_hash_pointer_new(NULL);
    ctx = elm_ctxpopup_add(e_comp->elm);
    elm_object_style_set(ctx, "noblock");
 
@@ -127,36 +179,36 @@ _wifi_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, 
    E_EXPAND(box);
    E_FILL(box);
 
-   inst->popup_list = list = elm_list_add(ctx);
+   inst->popup.popup_list = list = elm_list_add(ctx);
    elm_list_mode_set(list, ELM_LIST_COMPRESS);
    elm_scroller_content_min_limit(list, 0, 1);
    evas_object_size_hint_max_set(list, -1, e_comp_object_util_zone_get(inst->box)-> h / 3);
    E_EXPAND(list);
    E_FILL(list);
-   _wifi_popup_list_populate(inst);
+   _wireless_popup_list_populate(inst);
    elm_list_go(list);
    evas_object_show(list);
    elm_box_pack_end(box, list);
    toggle = elm_check_add(ctx);
    evas_object_show(toggle);
    elm_object_style_set(toggle, "toggle");
-   elm_object_text_set(toggle, "Wifi State");
+   elm_object_text_set(toggle, names[type]);
    elm_object_part_text_set(toggle, "on", "On");
    elm_object_part_text_set(toggle, "off", "Off");
-   elm_check_state_pointer_set(toggle, &wifi_enabled);
-   evas_object_smart_callback_add(toggle, "changed", _wifi_popup_wifi_toggle, inst);
+   elm_check_state_set(toggle, wireless_type_enabled[type]);
+   evas_object_smart_callback_add(toggle, "changed", _wireless_popup_toggle, inst);
    elm_box_pack_end(box, toggle);
    elm_object_content_set(ctx, box);
    z_gadget_util_ctxpopup_place(inst->box, ctx);
    evas_object_smart_callback_call(inst->box, "gadget_popup", ctx);
-   inst->popup = e_comp_object_util_add(ctx, E_COMP_OBJECT_TYPE_NONE);
-   evas_object_layer_set(inst->popup, evas_object_layer_get(inst->popup) + 1);
-   e_comp_object_util_autoclose(inst->popup, NULL, _wifi_popup_key, NULL);
-   evas_object_show(inst->popup);
-   evas_object_event_callback_add(inst->popup, EVAS_CALLBACK_DEL, _wifi_popup_del, inst);
+   inst->popup.popup = e_comp_object_util_add(ctx, E_COMP_OBJECT_TYPE_NONE);
+   evas_object_layer_set(inst->popup.popup, evas_object_layer_get(inst->popup.popup) + 1);
+   e_comp_object_util_autoclose(inst->popup.popup, NULL, _wireless_popup_key, NULL);
+   evas_object_show(inst->popup.popup);
+   evas_object_event_callback_add(inst->popup.popup, EVAS_CALLBACK_DEL, _wireless_popup_del, inst);
 }
 
-static void
+static Evas_Object *
 _wifi_tooltip_row(Evas_Object *tb, const char *label, const char *value, int row)
 {
    Evas_Object *lbl;
@@ -172,6 +224,39 @@ _wifi_tooltip_row(Evas_Object *tb, const char *label, const char *value, int row
    E_ALIGN(lbl, 0, 0.5);
    elm_object_text_set(lbl, value);
    elm_table_pack(tb, lbl, 1, row, 1, 1);
+   return lbl;
+}
+
+static const char *
+_wifi_tooltip_method_name(void)
+{
+   const char *val = "Disabled";
+   if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->ipv6)
+     {
+        if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->method == WIRELESS_NETWORK_IPV6_METHOD_MANUAL)
+          val = "Manual";
+        else if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->method == WIRELESS_NETWORK_IPV6_METHOD_AUTO)
+          val = "Auto";
+        else if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->method == WIRELESS_NETWORK_IPV6_METHOD_6TO4)
+          val = "6to4";
+     }
+   else
+     {
+        if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->method == WIRELESS_NETWORK_IPV4_METHOD_MANUAL)
+          val = "Manual";
+        else if (wireless_current[WIRELESS_SERVICE_TYPE_WIFI]->method == WIRELESS_NETWORK_IPV4_METHOD_DHCP)
+          val = "DHCP";
+     }
+   return val;
+}
+
+static void
+_wifi_tooltip_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+
+   inst->tooltip.address = inst->tooltip.method = inst->tooltip.signal = NULL;
+   inst->tooltip.type = -1;
 }
 
 static Evas_Object *
@@ -180,44 +265,21 @@ _wifi_tooltip(void *data, Evas_Object *obj EINA_UNUSED, Evas_Object *tooltip)
    Instance *inst = data;
    Evas_Object *tb;
    int row = 0;
-   const char *val;
    char buf[1024];
+   int type = WIRELESS_SERVICE_TYPE_WIFI;
 
-   if (!wifi_current) return NULL;
+   if (!wireless_current[type]) return NULL;
    tb = elm_table_add(tooltip);
    elm_table_padding_set(tb, 5, 1);
 
-   _wifi_tooltip_row(tb, "Name:", wifi_current->name, row++);
-   val = "Disabled";
-   if (wifi_current->ipv6)
-     {
-        if (wifi_current->method == WIRELESS_NETWORK_IPV6_METHOD_MANUAL)
-          val = "Manual";
-        else if (wifi_current->method == WIRELESS_NETWORK_IPV6_METHOD_AUTO)
-          val = "Auto";
-        else if (wifi_current->method == WIRELESS_NETWORK_IPV6_METHOD_6TO4)
-          val = "6to4";
-     }
-   else
-     {
-        if (wifi_current->method == WIRELESS_NETWORK_IPV4_METHOD_MANUAL)
-          val = "Manual";
-        else if (wifi_current->method == WIRELESS_NETWORK_IPV4_METHOD_DHCP)
-          val = "DHCP";
-     }
-   _wifi_tooltip_row(tb, "Method:", val, row++);
+   _wifi_tooltip_row(tb, "Name:", wireless_current[type]->wn->name, row++);
+   inst->tooltip.method = _wifi_tooltip_row(tb, "Method:", _wifi_tooltip_method_name(), row++);
 
-   if (wifi_current->type == WIRELESS_SERVICE_TYPE_WIFI)
-     {
-        snprintf(buf, sizeof(buf), "%u%%", wifi_current->strength);
-        _wifi_tooltip_row(tb, "Signal:", buf, row++);
-     }
+   inst->tooltip.address = _wifi_tooltip_row(tb, "Address:", wireless_current[type]->address, row++);
+   snprintf(buf, sizeof(buf), "%u%%", wireless_current[type]->wn->strength);
+   inst->tooltip.signal = _wifi_tooltip_row(tb, "Signal:", buf, row++);
 
-   if ((wifi_current->state == WIRELESS_NETWORK_STATE_CONNECTED) ||
-       (wifi_current->state == WIRELESS_NETWORK_STATE_ONLINE))
-     {
-        _wifi_tooltip_row(tb, "Address:", wifi_current->address, row++);
-     }
+   evas_object_event_callback_add(tb, EVAS_CALLBACK_DEL, _wifi_tooltip_del, inst);
    return tb;
 }
 
@@ -227,9 +289,71 @@ wireless_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void
    Instance *inst = data;
 
    instances = eina_list_remove(instances, inst);
-   evas_object_hide(inst->popup);
-   evas_object_del(inst->popup);
+   evas_object_hide(inst->popup.popup);
+   evas_object_del(inst->popup.popup);
    free(inst);
+}
+
+static void
+_wireless_gadget_refresh(Instance *inst)
+{
+   Elm_Tooltip_Content_Cb tooltip_cb[] =
+   {
+     [WIRELESS_SERVICE_TYPE_ETHERNET] = NULL,
+     [WIRELESS_SERVICE_TYPE_WIFI] = _wifi_tooltip,
+     [WIRELESS_SERVICE_TYPE_BLUETOOTH] = NULL,
+     [WIRELESS_SERVICE_TYPE_CELLULAR] = NULL,
+   };
+   int type;
+   int avail = 0;
+
+   for (type = 0; type < WIRELESS_SERVICE_TYPE_LAST; type++)
+     {
+        if (wireless_type_available[type])
+          {
+             if (!inst->icon[type])
+               {
+                  Evas_Object *g;
+
+                  inst->icon[type] = g = elm_layout_add(inst->box);
+                  E_EXPAND(g);
+                  E_FILL(g);
+                  e_theme_edje_object_set(g, NULL, wireless_theme_groups[type]);
+                  if (tooltip_cb[type])
+                    elm_object_tooltip_content_cb_set(g, tooltip_cb[type], inst, NULL);
+                  evas_object_event_callback_add(g, EVAS_CALLBACK_MOUSE_DOWN, _wireless_gadget_mouse_down, inst);
+               }
+             _wifi_icon_init(inst->icon[type], wireless_current[type] ? wireless_current[type]->wn : NULL);
+             evas_object_hide(inst->icon[type]);
+             avail++;
+          }
+        else
+          E_FREE_FUNC(inst->icon[type], evas_object_del);
+     }
+   elm_box_unpack_all(inst->box);
+   type = WIRELESS_SERVICE_TYPE_ETHERNET;
+   if (inst->icon[type])
+     {
+        /* only show ethernet if it's connected or there's no wifi available */
+        if ((!inst->icon[WIRELESS_SERVICE_TYPE_WIFI]) ||
+            (wireless_current[type] &&
+            (wireless_current[type]->wn->state == WIRELESS_NETWORK_STATE_ONLINE)))
+          {
+             elm_box_pack_end(inst->box, inst->icon[type]);
+             evas_object_show(inst->icon[type]);
+          }
+     }
+   for (type = WIRELESS_SERVICE_TYPE_WIFI; type < WIRELESS_SERVICE_TYPE_LAST; type++)
+     {
+        if (!inst->icon[type]) continue;
+        
+        elm_box_pack_end(inst->box, inst->icon[type]);
+        evas_object_show(inst->icon[type]);
+     }
+   if (inst->orient == Z_GADGET_SITE_ORIENT_VERTICAL)
+     evas_object_size_hint_aspect_set(inst->box, EVAS_ASPECT_CONTROL_BOTH, 1, avail);
+   else
+     evas_object_size_hint_aspect_set(inst->box, EVAS_ASPECT_CONTROL_BOTH, avail, 1);
 }
 
 static Evas_Object *
@@ -239,27 +363,25 @@ wireless_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient)
    Instance *inst;
 
    inst = E_NEW(Instance, 1);
+   inst->orient = orient;
+   inst->popup.type = inst->tooltip.type = -1;
    inst->box = elm_box_add(parent);
    elm_box_horizontal_set(inst->box, orient != Z_GADGET_SITE_ORIENT_VERTICAL);
    elm_box_homogeneous_set(inst->box, 1);
-
-   inst->wifi = g = elm_layout_add(parent);
-   E_EXPAND(g);
-   E_FILL(g);
-   e_theme_edje_object_set(g, NULL, "e/modules/wireless/wifi");
-   evas_object_show(g);
-   elm_box_pack_end(inst->box, g);
-   evas_object_show(inst->box);
-   elm_object_tooltip_content_cb_set(g, _wifi_tooltip, inst, NULL);
-
-   evas_object_size_hint_aspect_set(inst->box, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
    evas_object_event_callback_add(inst->box, EVAS_CALLBACK_DEL, wireless_del, inst);
-   evas_object_event_callback_add(g, EVAS_CALLBACK_MOUSE_DOWN, _wifi_mouse_down, inst);
 
    if (*id < 0)
-     elm_object_signal_emit(g, "e,state,wifi", "e");
-   else if (wifi_current)
-     _wifi_icon_init(g, wifi_current);
+     {
+        inst->icon[WIRELESS_SERVICE_TYPE_WIFI] = g = elm_layout_add(inst->box);
+        E_EXPAND(g);
+        E_FILL(g);
+        e_theme_edje_object_set(g, NULL, "e/modules/wireless/wifi");
+        elm_object_signal_emit(g, "e,state,default", "e");
+        _wifi_icon_signal(g, WIRELESS_NETWORK_STATE_ONLINE, 100);
+        evas_object_size_hint_aspect_set(inst->box, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
+     }
+   else
+     _wireless_gadget_refresh(inst);
    instances = eina_list_append(instances, inst);
 
    return inst->box;
@@ -278,48 +400,81 @@ wireless_gadget_shutdown(void)
 }
 
 EINTERN void
-wireless_wifi_network_state_set(Wireless_Network_State state)
+wireless_service_type_available_set(Eina_Bool *avail)
 {
-   Eina_List *l;
-   Instance *inst;
-
-   if (wifi_network_state == state) return;
-
-   wifi_network_state = state;
-   //EINA_LIST_FOREACH(instances, l, inst)
-     //_wifi_network_state_update(inst->wifi);
+   if (!memcmp(avail, &wireless_type_available, sizeof(wireless_type_available))) return;
+   memcpy(&wireless_type_available, avail, WIRELESS_SERVICE_TYPE_LAST * sizeof(Eina_Bool));
+   E_LIST_FOREACH(instances, _wireless_gadget_refresh);
 }
 
 EINTERN void
-wireless_wifi_current_network_set(Wireless_Connection *wn)
+wireless_service_type_enabled_set(Eina_Bool *avail)
+{
+   if (!memcmp(avail, &wireless_type_enabled, sizeof(wireless_type_enabled))) return;
+   memcpy(&wireless_type_enabled, avail, WIRELESS_SERVICE_TYPE_LAST * sizeof(Eina_Bool));
+   E_LIST_FOREACH(instances, _wireless_gadget_refresh);
+}
+
+EINTERN void
+wireless_wifi_current_networks_set(Wireless_Connection **current)
 {
    Eina_List *l;
    Instance *inst;
-   Wireless_Connection *prev;
+   Wireless_Connection *prev[WIRELESS_SERVICE_TYPE_LAST] = {NULL};
 
-   prev = wifi_current;
-   wifi_current = wn;
+   memcpy(&prev, &wireless_current, WIRELESS_SERVICE_TYPE_LAST * sizeof(void*));
+   memcpy(&wireless_current, current, WIRELESS_SERVICE_TYPE_LAST * sizeof(void*));
    EINA_LIST_FOREACH(instances, l, inst)
      {
-        if (inst->popup)
+        int type;
+
+        type = inst->popup.type;
+        if (type > -1)
           {
              Elm_Object_Item *it;
              Evas_Object *icon;
 
-             if (wn)
+             if (wireless_current[type])
                {
-                  it = eina_hash_find(inst->popup_items, &wn);
+                  it = eina_hash_find(inst->popup.popup_items, &wireless_current[type]->wn);
                   icon = elm_object_item_content_get(it);
-                  _wifi_icon_init(icon, wn);
+                  _wifi_icon_init(icon, wireless_current[type]->wn);
                }
-             if (prev)
+             if (prev[type])
                {
-                  it = eina_hash_find(inst->popup_items, &prev);
-                  icon = elm_object_item_content_get(it);
-                  _wifi_icon_init(icon, prev);
+                  it = eina_hash_find(inst->popup.popup_items, &prev[type]->wn);
+                  if (it)
+                    {
+                       icon = elm_object_item_content_get(it);
+                       _wifi_icon_init(icon, prev[type]->wn);
+                    }
                }
           }
-        _wifi_icon_init(inst->wifi, wn);
+        for (type = 0; type < WIRELESS_SERVICE_TYPE_LAST; type++)
+          {
+             if (inst->icon[type] && wireless_current[type])
+               _wifi_icon_init(inst->icon[type], wireless_current[type]->wn);
+          }
+        type = inst->tooltip.type;
+        if (type < 0) continue;
+        if (prev[type] &&
+          ((!wireless_current[type]) ||
+            ((wireless_current[type] != prev[type]) && (!eina_streq(wireless_current[type]->wn->name, prev[type]->wn->name)))))
+          {
+             elm_object_tooltip_hide(inst->icon[type]);
+             continue;
+          }
+        if (inst->tooltip.method)
+          elm_object_text_set(inst->tooltip.method, _wifi_tooltip_method_name());
+        if (inst->tooltip.address)
+          elm_object_text_set(inst->tooltip.address, wireless_current[type]->address);
+        if (inst->tooltip.signal)
+          {
+             char buf[32];
+
+             snprintf(buf, sizeof(buf), "%u%%", wireless_current[type]->wn->strength);
+             elm_object_text_set(inst->tooltip.signal, buf);
+          }
      }
 }
 
@@ -332,11 +487,11 @@ wireless_wifi_networks_set(Eina_Array *networks)
 
    wifi_networks = networks;
    EINA_LIST_FOREACH(instances, l, inst)
-     if (inst->popup)
+     if (inst->popup.popup)
        {
-          elm_list_clear(inst->popup_list);
-          eina_hash_free_buckets(inst->popup_items);
-          _wifi_popup_list_populate(inst);
+          elm_list_clear(inst->popup.popup_list);
+          eina_hash_free_buckets(inst->popup.popup_items);
+          _wireless_popup_list_populate(inst);
        }
 
    return prev;

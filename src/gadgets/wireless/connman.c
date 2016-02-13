@@ -4,7 +4,10 @@
 #define CONNMAN_MANAGER_IFACE CONNMAN_BUS_NAME ".Manager"
 #define CONNMAN_SERVICE_IFACE CONNMAN_BUS_NAME ".Service"
 #define CONNMAN_TECHNOLOGY_IFACE CONNMAN_BUS_NAME ".Technology"
-#define CONNMAN_TECHNOLOGY_PATH "/net/connman/technology/wifi"
+#define CONNMAN_TECHNOLOGY_PATH_ETHERNET "/net/connman/technology/ethernet"
+#define CONNMAN_TECHNOLOGY_PATH_WIFI "/net/connman/technology/wifi"
+#define CONNMAN_TECHNOLOGY_PATH_BT "/net/connman/technology/bluetooth"
+#define CONNMAN_TECHNOLOGY_PATH_CELLULAR "/net/connman/technology/cellular"
 #define CONNMAN_AGENT_IFACE "net.connman.Agent"
 #define CONNMAN_AGENT_PATH "/org/enlightenment/connman/agent"
 
@@ -38,7 +41,19 @@ typedef enum
    CONNMAN_SERVICE_TYPE_WIFI,
    CONNMAN_SERVICE_TYPE_BLUETOOTH,
    CONNMAN_SERVICE_TYPE_CELLULAR,
+   CONNMAN_SERVICE_TYPE_LAST,
 } Connman_Service_Type;
+
+typedef struct Connman_Technology
+{
+   Connman_Service_Type type;
+   Eldbus_Proxy *proxy;
+   Eina_Stringshare *tethering_ssid;
+   Eina_Stringshare *tethering_passwd;
+   Eina_Bool powered : 1;
+   Eina_Bool connected : 1;
+   Eina_Bool tethering : 1;
+} Connman_Technology;
 
 typedef struct
 {
@@ -62,6 +77,8 @@ typedef struct
    Connman_State state;
    Connman_Service_Type type;
    uint8_t strength;
+
+   /* Connection */
    unsigned int method;
    Eina_Stringshare *address;
    Eina_Stringshare *gateway;
@@ -93,22 +110,46 @@ typedef struct Connman_Field
 static int _connman_log_dom = -1;
 
 static Eldbus_Proxy *proxy_manager;
-static Eldbus_Proxy *proxy_technology;
 
+static Eldbus_Pending *pending_gettechnologies;
 static Eldbus_Pending *pending_getservices;
 static Eldbus_Pending *pending_getproperties_manager;
 
-static Eina_Inlist *connman_services;
-static unsigned int connman_services_count;
+static Eina_List *signal_handlers;
+
+static Eina_Inlist *connman_services_list[CONNMAN_SERVICE_TYPE_LAST];
+static Eina_Hash *connman_services[CONNMAN_SERVICE_TYPE_LAST];
 static Eldbus_Service_Interface *agent_iface;
 
-static Connman_Service *connman_current_service;
-static Eina_Bool connman_offline;
-static Eina_Bool connman_powered;
+static Connman_Service *connman_current_service[CONNMAN_SERVICE_TYPE_LAST];
+static Wireless_Connection *connman_current_connection[CONNMAN_SERVICE_TYPE_LAST];
+
+static Connman_Technology connman_technology[CONNMAN_SERVICE_TYPE_LAST];
 
 /* connman -> wireless */
-static Eina_Hash *connman_services_map;
+static Eina_Hash *connman_services_map[CONNMAN_SERVICE_TYPE_LAST];
 
+static void
+connman_update_technologies(void)
+{
+   Eina_Bool avail[CONNMAN_SERVICE_TYPE_LAST];
+   int i;
+
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     avail[i] = connman_technology[i].type > -1;
+   wireless_service_type_available_set(avail);
+}
+
+static void
+connman_update_enabled_technologies(void)
+{
+   Eina_Bool enabled[CONNMAN_SERVICE_TYPE_LAST];
+   int i;
+
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     enabled[i] = connman_technology[i].powered;
+   wireless_service_type_enabled_set(enabled);
+}
 
 static Wireless_Network_State
 _connman_wifi_state_convert(Connman_State state)
@@ -139,13 +180,13 @@ _connman_wifi_state_convert(Connman_State state)
    return wifi_state;
 }
 
-static Wireless_Connection *
+static Wireless_Network *
 _connman_service_convert(Connman_Service *cs)
 {
-   Wireless_Connection *wn;
+   Wireless_Network *wn;
 
-   wn = E_NEW(Wireless_Connection, 1);
-   memcpy(wn, &cs->name, sizeof(Wireless_Connection));
+   wn = E_NEW(Wireless_Network, 1);
+   memcpy(wn, &cs->name, sizeof(Wireless_Network));
    wn->state = _connman_wifi_state_convert(cs->state);
    return wn;
 }
@@ -153,30 +194,45 @@ _connman_service_convert(Connman_Service *cs)
 static void
 connman_update_current_network(Connman_Service *cs)
 {
-   connman_current_service = cs;
-   if (eina_hash_population(connman_services_map))
-     wireless_wifi_current_network_set(eina_hash_find(connman_services_map, &cs));
+   if (connman_current_service[cs->type] != cs)
+     {
+        E_FREE(connman_current_connection[cs->type]);
+        if (cs)
+          connman_current_connection[cs->type] = E_NEW(Wireless_Connection, 1);
+     }
+   connman_current_service[cs->type] = cs;
+   if (cs)
+     {
+        connman_current_connection[cs->type]->wn = eina_hash_find(connman_services_map[cs->type], &cs);
+        memcpy(&connman_current_connection[cs->type]->method,
+          &cs->method, sizeof(Wireless_Connection) - sizeof(void*));
+     }
+   wireless_wifi_current_networks_set(connman_current_connection);
 }
 
 static void
-connman_update_networks(void)
+connman_update_networks(Connman_Service_Type type)
 {
    Eina_Array *arr;
    Connman_Service *cs;
-   Wireless_Connection *wn;
+   Wireless_Network *wn;
+   Eina_Hash *map;
 
-   eina_hash_free_buckets(connman_services_map);
-   arr = eina_array_new(connman_services_count);
-   EINA_INLIST_FOREACH(connman_services, cs)
+   map = connman_services_map[type];
+   connman_services_map[type] = eina_hash_pointer_new(free);
+   arr = eina_array_new(eina_hash_population(connman_services[type]));
+   EINA_INLIST_FOREACH(connman_services_list[type], cs)
      {
         wn = _connman_service_convert(cs);
-        eina_hash_add(connman_services_map, &cs, wn);
+        eina_hash_add(connman_services_map[type], &cs, wn);
         eina_array_push(arr, wn);
+        if (connman_current_service[type] && (cs->state == CONNMAN_STATE_ONLINE))
+          connman_current_service[type] = cs;
      }
    arr = wireless_wifi_networks_set(arr);
-   if (connman_current_service)
-     connman_update_current_network(connman_current_service);
-   if (!arr) return;
+   if (connman_current_service[type])
+     connman_update_current_network(connman_current_service[type]);
+   eina_hash_free(map);
    eina_array_free(arr);
 }
 
@@ -274,6 +330,7 @@ _connman_service_free(Connman_Service *cs)
    DBG("service free %p || proxy %p", cs, cs->proxy);
    eldbus_proxy_unref(cs->proxy);
    eldbus_object_unref(obj);
+   connman_services_list[cs->type] = eina_inlist_remove(connman_services_list[cs->type], EINA_INLIST_GET(cs));
 
    free(cs);
 }
@@ -404,7 +461,7 @@ _connman_service_property(void *data, const Eldbus_Message *msg)
      connman_update_current_network(cs);
 }
 
-static void
+static Connman_Service *
 _connman_service_new(const char *path, Eldbus_Message_Iter *props)
 {
    Connman_Service *cs;
@@ -419,9 +476,10 @@ _connman_service_new(const char *path, Eldbus_Message_Iter *props)
                                   _connman_service_property, cs);
 
    _connman_service_prop_dict_changed(cs, props);
-   connman_services = eina_inlist_append(connman_services, EINA_INLIST_GET(cs));
-   connman_services_count++;
+   connman_services_list[cs->type] = eina_inlist_append(connman_services_list[cs->type], EINA_INLIST_GET(cs));
+   eina_hash_add(connman_services[cs->type], cs->path, cs);
    DBG("Added service: %p %s || proxy %p", cs, path, cs->proxy);
+   return cs;
 }
 
 static void
@@ -430,28 +488,63 @@ _connman_manager_agent_register(void *data, const Eldbus_Message *msg, Eldbus_Pe
 
 }
 
-static void
-_connman_technology_parse_wifi_prop_changed(const char *name, Eldbus_Message_Iter *value)
+static Eina_Bool
+_connman_technology_parse_prop_changed(Connman_Technology *ct, const char *name, Eldbus_Message_Iter *value)
 {
+   Eina_Bool val;
+   const char *str;
+   Eina_Bool ret = EINA_FALSE;
+
    if (!strcmp(name, "Powered"))
      {
-        Eina_Bool powered;
-
-        eldbus_message_iter_arguments_get(value, "b", &powered);
-        //connman_update_
+        eldbus_message_iter_arguments_get(value, "b", &val);
+        val = !!val;
+        if (val != ct->powered) ret = EINA_TRUE;
+        ct->powered = !!val;
      }
+   else if (!strcmp(name, "Connected"))
+     {
+        eldbus_message_iter_arguments_get(value, "b", &val);
+        ct->connected = !!val;
+     }
+   else if (!strcmp(name, "Tethering"))
+     {
+        eldbus_message_iter_arguments_get(value, "b", &val);
+        ct->tethering = !!val;
+     }
+   else if (!strcmp(name, "TetheringIdentifier"))
+     {
+        eldbus_message_iter_arguments_get(value, "b", &str);
+        ct->tethering_ssid = eina_stringshare_add(str);
+     }
+   else if (!strcmp(name, "TetheringPassphrase"))
+     {
+        eldbus_message_iter_arguments_get(value, "b", &str);
+        ct->tethering_passwd = eina_stringshare_add(str);
+     }
+   return EINA_FALSE;
 }
 
 static void
-_connman_technology_event_property(void *data EINA_UNUSED, const Eldbus_Message *msg)
+_connman_technology_event_property(void *data, const Eldbus_Message *msg)
 {
    Eldbus_Message_Iter *var;
    const char *name;
+   Connman_Technology *ct = NULL;
+   int i;
+
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     if (data == connman_technology[i].proxy)
+       {
+          ct = &connman_technology[i];
+          break;
+       }
+   if (!ct) return;
 
    if (!eldbus_message_arguments_get(msg, "sv", &name, &var))
      ERR("Could not parse message %p", msg);
-   else
-     _connman_technology_parse_wifi_prop_changed(name, var);
+   else if (_connman_technology_parse_prop_changed(ct, name, var))
+     connman_update_enabled_technologies();
 }
 
 static Eina_Bool
@@ -513,6 +606,8 @@ _connman_manager_getservices(void *data EINA_UNUSED, const Eldbus_Message *msg, 
 {
    Eldbus_Message_Iter *array, *s;
    const char *name, *text;
+   int i;
+   Eina_Bool update[CONNMAN_SERVICE_TYPE_LAST] = {0};
 
    pending_getservices = NULL;
    if (eldbus_message_error_get(msg, &name, &text))
@@ -531,13 +626,87 @@ _connman_manager_getservices(void *data EINA_UNUSED, const Eldbus_Message *msg, 
      {
         const char *path;
         Eldbus_Message_Iter *inner_array;
+        Connman_Service *cs;
 
         if (!eldbus_message_iter_arguments_get(s, "oa{sv}", &path, &inner_array))
           continue;
 
-        _connman_service_new(path, inner_array);
+        cs = _connman_service_new(path, inner_array);
+        update[cs->type] = 1;
      }
-   connman_update_networks();
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     if (update[i]) connman_update_networks(i);
+}
+
+static void
+_connman_manager_gettechnologies(void *data EINA_UNUSED, const Eldbus_Message *msg, Eldbus_Pending *pending EINA_UNUSED)
+{
+   Eldbus_Message_Iter *array, *s;
+   const char *name, *text;
+
+   pending_gettechnologies = NULL;
+   if (eldbus_message_error_get(msg, &name, &text))
+     {
+        ERR("Could not get technologies. %s: %s", name, text);
+        return;
+     }
+
+   if (!eldbus_message_arguments_get(msg, "a(oa{sv})", &array))
+     {
+        ERR("Error getting array");
+        return;
+     }
+
+   while (eldbus_message_iter_get_and_next(array, 'r', &s))
+     {
+        const char *path;
+        Eldbus_Message_Iter *inner_array, *dict;
+        Connman_Technology *ct = NULL;
+        Eldbus_Object *obj;
+        int i;
+        const char *paths[] =
+        {
+           CONNMAN_TECHNOLOGY_PATH_ETHERNET,
+           CONNMAN_TECHNOLOGY_PATH_WIFI,
+           CONNMAN_TECHNOLOGY_PATH_BT,
+           CONNMAN_TECHNOLOGY_PATH_CELLULAR,
+        };
+
+        if (!eldbus_message_iter_arguments_get(s, "oa{sv}", &path, &inner_array))
+          continue;
+        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+          {
+             if (strcmp(path, paths[i])) continue;
+             ct = &connman_technology[i];
+             ct->type = i;
+
+             obj = eldbus_object_get(dbus_conn, CONNMAN_BUS_NAME, paths[i]);
+             ct->proxy = eldbus_proxy_get(obj, CONNMAN_TECHNOLOGY_IFACE);
+             signal_handlers = eina_list_append(signal_handlers,
+               eldbus_proxy_signal_handler_add(ct->proxy, "PropertyChanged",
+                                             _connman_technology_event_property, ct->proxy));
+          }
+        if (!ct)
+          {
+             ERR("No handler for technology: %s", path);
+             continue;
+          }
+        while (eldbus_message_iter_get_and_next(inner_array, 'e', &dict))
+          {
+             Eldbus_Message_Iter *var;
+
+             if (eldbus_message_iter_arguments_get(dict, "sv", &name, &var))
+               _connman_technology_parse_prop_changed(ct, name, var);
+          }
+     }
+   /* scan not supported on bluetooth */
+   if (connman_technology[CONNMAN_SERVICE_TYPE_BLUETOOTH].proxy)
+     pending_getservices = eldbus_proxy_call(proxy_manager, "GetServices", _connman_manager_getservices,
+       NULL, -1, "");
+   else if (connman_technology[CONNMAN_SERVICE_TYPE_WIFI].proxy)
+     eldbus_proxy_call(connman_technology[CONNMAN_SERVICE_TYPE_WIFI].proxy, "Scan", NULL, NULL, -1, "");
+   connman_update_technologies();
+   connman_update_enabled_technologies();
 }
 
 static void
@@ -545,7 +714,8 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
 {
    Eldbus_Message_Iter *changed, *removed, *s;
    const char *path;
-   Eina_Bool update = EINA_FALSE;
+   int i;
+   Eina_Bool update[CONNMAN_SERVICE_TYPE_LAST] = {0};
 
    if (pending_getservices) return;
 
@@ -557,16 +727,11 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
 
    while (eldbus_message_iter_get_and_next(removed, 'o', &path))
      {
-        Connman_Service *cs;
-
-        EINA_INLIST_FOREACH(connman_services, cs)
+        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
           {
-             if (!eina_streq(cs->path, path)) continue;
-             connman_services = eina_inlist_remove(connman_services, EINA_INLIST_GET(cs));
-             DBG("Removed service: %p %s", cs, path);
-             connman_services_count--;
-             _connman_service_free(cs);
-             update = EINA_TRUE;
+             if (!eina_hash_del_by_key(connman_services[i], path)) continue;
+             DBG("Removed service: %s", path);
+             update[i] = 1;
              break;
           }
      }
@@ -580,19 +745,23 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
         if (!eldbus_message_iter_arguments_get(s, "oa{sv}", &path, &array))
           continue;
 
-        update = EINA_TRUE;
-        EINA_INLIST_FOREACH(connman_services, cs)
+        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
           {
-             if (!eina_streq(path, cs->path)) continue;
+             cs = eina_hash_find(connman_services[i], path);
+             if (!cs) continue;
              _connman_service_prop_dict_changed(cs, array);
+             update[cs->type] = 1;
              DBG("Changed service: %p %s", cs, path);
              break;
           }
         if (!found)
-          _connman_service_new(path, array);
+          {
+             cs = _connman_service_new(path, array);
+             update[cs->type] = 1;
+          }
      }
-   if (update)
-     connman_update_networks();
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     if (update[i]) connman_update_networks(i);
 }
 
 static void
@@ -823,29 +992,25 @@ static void
 _connman_start(void)
 {
    Eldbus_Object *obj;
+   int i;
+
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     connman_services[i] = eina_hash_string_superfast_new((Eina_Free_Cb)_connman_service_free);
 
    obj = eldbus_object_get(dbus_conn, CONNMAN_BUS_NAME, "/");
    proxy_manager = eldbus_proxy_get(obj, CONNMAN_MANAGER_IFACE);
-   obj = eldbus_object_get(dbus_conn, CONNMAN_BUS_NAME, CONNMAN_TECHNOLOGY_PATH);
-   proxy_technology = eldbus_proxy_get(obj, CONNMAN_TECHNOLOGY_IFACE);
 
-   eldbus_proxy_signal_handler_add(proxy_manager, "PropertyChanged",
-                                   _connman_manager_event_property, NULL);
-   eldbus_proxy_signal_handler_add(proxy_manager, "ServicesChanged",
-                                   _connman_manager_event_services, NULL);
-   eldbus_proxy_signal_handler_add(proxy_technology, "PropertyChanged",
-                                   _connman_technology_event_property, NULL);
-   
-   /*
-    * PropertyChanged signal in service's path is guaranteed to arrive only
-    * after ServicesChanged above. So we only add the handler later, in a per
-    * service manner.
-    */
-   pending_getservices = eldbus_proxy_call(proxy_manager, "GetServices", _connman_manager_getservices,
+   signal_handlers = eina_list_append(signal_handlers,
+     eldbus_proxy_signal_handler_add(proxy_manager, "PropertyChanged",
+                                   _connman_manager_event_property, NULL));
+   signal_handlers = eina_list_append(signal_handlers,
+     eldbus_proxy_signal_handler_add(proxy_manager, "ServicesChanged",
+                                   _connman_manager_event_services, NULL));
+
+   pending_gettechnologies = eldbus_proxy_call(proxy_manager, "GetTechnologies", _connman_manager_gettechnologies,
      NULL, -1, "");
    pending_getproperties_manager = eldbus_proxy_call(proxy_manager, "GetProperties", _connman_manager_getproperties,
      NULL, -1, "");
-   eldbus_proxy_call(proxy_technology, "Scan", NULL, NULL, -1, "");
 
    agent_iface = eldbus_service_interface_register(dbus_conn, CONNMAN_AGENT_PATH, &desc);
 }
@@ -854,27 +1019,25 @@ static void
 _connman_end(void)
 {
    Eldbus_Object *obj;
+   int i;
 
    if (!proxy_manager) return;
    eldbus_proxy_call(proxy_manager, "UnregisterAgent", NULL, NULL, -1, "o", CONNMAN_AGENT_PATH);
 
-   while (connman_services)
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
      {
-        Connman_Service *cs = EINA_INLIST_CONTAINER_GET(connman_services,
-                                                        Connman_Service);
-        connman_services = eina_inlist_remove(connman_services, connman_services);
-        _connman_service_free(cs);
+        E_FREE_FUNC(connman_services[i], eina_hash_free);
+        if (!connman_technology[i].proxy) continue;
+        obj = eldbus_proxy_object_get(connman_technology[i].proxy);
+        E_FREE_FUNC(connman_technology[i].proxy, eldbus_proxy_unref);
+        eldbus_object_unref(obj);
      }
-
    E_FREE_FUNC(pending_getservices, eldbus_pending_cancel);
    E_FREE_FUNC(pending_getproperties_manager, eldbus_pending_cancel);
+   E_FREE_LIST(signal_handlers, eldbus_signal_handler_del);
 
    obj = eldbus_proxy_object_get(proxy_manager);
    E_FREE_FUNC(proxy_manager, eldbus_proxy_unref);
-   eldbus_object_unref(obj);
-   obj = eldbus_proxy_object_get(proxy_technology);
-   E_FREE_FUNC(proxy_technology, eldbus_proxy_unref);
-   eldbus_object_unref(obj);
 }
 
 static void
@@ -889,8 +1052,11 @@ _connman_name_owner_changed(void *data EINA_UNUSED, const char *bus EINA_UNUSED,
 EINTERN void
 connman_init(void)
 {
+   int i;
+
    if (_connman_log_dom > -1) return;
-   connman_services_map = eina_hash_pointer_new(free);
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     connman_technology[i].type = -1;
    eldbus_name_owner_changed_callback_add(dbus_conn, CONNMAN_BUS_NAME,
                                          _connman_name_owner_changed,
                                          NULL, EINA_TRUE);
@@ -900,10 +1066,33 @@ connman_init(void)
 EINTERN void
 connman_shutdown(void)
 {
+   int i;
    E_FREE_FUNC(agent_iface, eldbus_service_object_unregister);
-   E_FREE_FUNC(connman_services_map, eina_hash_free);
+   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+     {
+        E_FREE_FUNC(connman_services_map[i], eina_hash_free);
+        E_FREE(connman_current_connection[i]);
+        connman_current_service[i] = NULL;
+     }
    _connman_end();
    eldbus_name_owner_changed_callback_del(dbus_conn, CONNMAN_BUS_NAME, _connman_name_owner_changed, NULL);
    eina_log_domain_unregister(_connman_log_dom);
    _connman_log_dom = -1;
+}
+
+EINTERN void
+connman_technology_enabled_set(Wireless_Service_Type type, Eina_Bool state)
+{
+   Eldbus_Message_Iter *main_iter, *var;
+   Eldbus_Message *msg;
+
+   EINA_SAFETY_ON_NULL_RETURN(connman_technology[type].proxy);
+   msg = eldbus_proxy_method_call_new(connman_technology[type].proxy, "SetProperty");
+   main_iter = eldbus_message_iter_get(msg);
+   eldbus_message_iter_basic_append(main_iter, 's', "Powered");
+   var = eldbus_message_iter_container_new(main_iter, 'v', "b");
+   eldbus_message_iter_basic_append(var, 'b', state);
+   eldbus_message_iter_container_close(main_iter, var);
+
+   eldbus_proxy_send(connman_technology[type].proxy, msg, NULL, NULL, -1);
 }
