@@ -11,6 +11,9 @@
 #define CONNMAN_AGENT_IFACE "net.connman.Agent"
 #define CONNMAN_AGENT_PATH "/org/enlightenment/connman/agent"
 
+#define MILLI_PER_SEC 1000
+#define CONNMAN_CONNECTION_TIMEOUT 60 * MILLI_PER_SEC
+
 #undef DBG
 #undef INF
 #undef WRN
@@ -58,7 +61,6 @@ typedef struct Connman_Technology
 typedef struct
 {
    EINA_INLIST;
-   const char *path;
    Eldbus_Proxy *proxy;
 
    /* Private */
@@ -72,6 +74,7 @@ typedef struct
    Eldbus_Signal_Handler *handler;
 
    /* Properties */
+   Eina_Stringshare *path;
    Eina_Stringshare *name;
    Wireless_Network_Security security;
    Connman_State state;
@@ -97,14 +100,21 @@ typedef struct
    Eina_Bool ipv6 : 1;
 } Connman_Service;
 
+typedef enum
+{
+   CONNMAN_FIELD_STATE_MANDATORY,
+   CONNMAN_FIELD_STATE_OPTIONAL,
+   CONNMAN_FIELD_STATE_ALTERNATE,
+   CONNMAN_FIELD_STATE_INFO,
+} Connman_Field_State;
+
 typedef struct Connman_Field
 {
    const char *name;
 
+   Connman_Field_State requirement;
    const char *type;
-   const char *requirement;
    const char *value;
-   Eina_Array *alternates;
 } Connman_Field;
 
 static int _connman_log_dom = -1;
@@ -130,7 +140,31 @@ static Connman_Technology connman_technology[CONNMAN_SERVICE_TYPE_LAST];
 static Eina_Hash *connman_services_map[CONNMAN_SERVICE_TYPE_LAST];
 
 static void
-connman_update_technologies(void)
+_connman_service_connect_cb(void *data, const Eldbus_Message *msg, Eldbus_Pending *pending EINA_UNUSED)
+{
+   Connman_Service *cs = data;
+   const char *error;
+
+   cs->pending.connect = NULL;
+   eldbus_message_error_get(msg, NULL, &error);
+}
+
+static Eina_Bool 
+_connman_service_connect(Wireless_Network *wn)
+{
+   Connman_Service *cs;
+
+   cs = eina_hash_find(connman_services[wn->type], wn->path);
+   EINA_SAFETY_ON_NULL_RETURN_VAL(cs, EINA_FALSE);
+   if (!cs->pending.connect)
+     cs->pending.connect = eldbus_proxy_call(cs->proxy, "Connect",
+                                             _connman_service_connect_cb, cs,
+                                             CONNMAN_CONNECTION_TIMEOUT, "");
+   return !!cs->pending.connect;
+}
+
+static void
+_connman_update_technologies(void)
 {
    Eina_Bool avail[CONNMAN_SERVICE_TYPE_LAST];
    int i;
@@ -141,7 +175,7 @@ connman_update_technologies(void)
 }
 
 static void
-connman_update_enabled_technologies(void)
+_connman_update_enabled_technologies(void)
 {
    Eina_Bool enabled[CONNMAN_SERVICE_TYPE_LAST];
    int i;
@@ -186,13 +220,14 @@ _connman_service_convert(Connman_Service *cs)
    Wireless_Network *wn;
 
    wn = E_NEW(Wireless_Network, 1);
-   memcpy(wn, &cs->name, sizeof(Wireless_Network));
+   memcpy(wn, &cs->path, offsetof(Wireless_Network, connect_cb));
    wn->state = _connman_wifi_state_convert(cs->state);
+   wn->connect_cb = _connman_service_connect;
    return wn;
 }
 
 static void
-connman_update_current_network(Connman_Service *cs)
+_connman_update_current_network(Connman_Service *cs)
 {
    if (connman_current_service[cs->type] != cs)
      {
@@ -211,7 +246,7 @@ connman_update_current_network(Connman_Service *cs)
 }
 
 static void
-connman_update_networks(Connman_Service_Type type)
+_connman_update_networks(Connman_Service_Type type)
 {
    Eina_Array *arr;
    Connman_Service *cs;
@@ -231,13 +266,13 @@ connman_update_networks(Connman_Service_Type type)
      }
    arr = wireless_wifi_networks_set(arr);
    if (connman_current_service[type])
-     connman_update_current_network(connman_current_service[type]);
+     _connman_update_current_network(connman_current_service[type]);
    eina_hash_free(map);
    eina_array_free(arr);
 }
 
 static void
-connman_update_airplane_mode(Eina_Bool offline)
+_connman_update_airplane_mode(Eina_Bool offline)
 {
    wireless_airplane_mode_set(offline);
 }
@@ -445,7 +480,7 @@ _connman_service_prop_dict_changed(Connman_Service *cs, Eldbus_Message_Iter *pro
           _connman_service_parse_prop_changed(cs, name, var);
      }
    if (cs->state == CONNMAN_STATE_ONLINE)
-     connman_update_current_network(cs);
+     _connman_update_current_network(cs);
 }
 
 static void
@@ -458,7 +493,7 @@ _connman_service_property(void *data, const Eldbus_Message *msg)
    if (eldbus_message_arguments_get(msg, "sv", &name, &var))
      _connman_service_parse_prop_changed(cs, name, var);
    if (cs->state == CONNMAN_STATE_ONLINE)
-     connman_update_current_network(cs);
+     _connman_update_current_network(cs);
 }
 
 static Connman_Service *
@@ -544,7 +579,7 @@ _connman_technology_event_property(void *data, const Eldbus_Message *msg)
    if (!eldbus_message_arguments_get(msg, "sv", &name, &var))
      ERR("Could not parse message %p", msg);
    else if (_connman_technology_parse_prop_changed(ct, name, var))
-     connman_update_enabled_technologies();
+     _connman_update_enabled_technologies();
 }
 
 static Eina_Bool
@@ -557,14 +592,14 @@ _connman_manager_parse_prop_changed(const char *name, Eldbus_Message_Iter *value
         if (!eldbus_message_iter_arguments_get(value, "s", &state))
           return EINA_FALSE;
         DBG("New state: %s", state);
-        //connman_update_state(str_to_state(state));
+        //_connman_update_state(str_to_state(state));
      }
    else if (!strcmp(name, "OfflineMode"))
      {
         Eina_Bool offline;
         if (!eldbus_message_iter_arguments_get(value, "b", &offline))
           return EINA_FALSE;
-        connman_update_airplane_mode(offline);
+        _connman_update_airplane_mode(offline);
      }
    else
      return EINA_FALSE;
@@ -635,7 +670,7 @@ _connman_manager_getservices(void *data EINA_UNUSED, const Eldbus_Message *msg, 
         update[cs->type] = 1;
      }
    for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
-     if (update[i]) connman_update_networks(i);
+     if (update[i]) _connman_update_networks(i);
 }
 
 static void
@@ -705,8 +740,8 @@ _connman_manager_gettechnologies(void *data EINA_UNUSED, const Eldbus_Message *m
        NULL, -1, "");
    else if (connman_technology[CONNMAN_SERVICE_TYPE_WIFI].proxy)
      eldbus_proxy_call(connman_technology[CONNMAN_SERVICE_TYPE_WIFI].proxy, "Scan", NULL, NULL, -1, "");
-   connman_update_technologies();
-   connman_update_enabled_technologies();
+   _connman_update_technologies();
+   _connman_update_enabled_technologies();
 }
 
 static void
@@ -761,7 +796,7 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
           }
      }
    for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
-     if (update[i]) connman_update_networks(i);
+     if (update[i]) _connman_update_networks(i);
 }
 
 static void
@@ -783,16 +818,9 @@ _connman_manager_event_property(void *data EINA_UNUSED, const Eldbus_Message *ms
 static Eldbus_Message *
 _connman_agent_release(const Eldbus_Service_Interface *iface EINA_UNUSED, const Eldbus_Message *msg)
 {
-   Eldbus_Message *reply;
-
    DBG("Agent released");
-
-   reply = eldbus_message_method_return_new(msg);
-#warning FIXME
-   //if (agent->dialog)
-     //e_object_del(E_OBJECT(agent->dialog));
-
-   return reply;
+   wireless_authenticate_cancel();
+   return eldbus_message_method_return_new(msg);
 }
 
 static Eldbus_Message *
@@ -812,8 +840,7 @@ _connman_agent_request_browser(const Eldbus_Service_Interface *iface EINA_UNUSED
 }
 
 static Eina_Bool
-_parse_field_value(Connman_Field *field, const char *key,
-                   Eldbus_Message_Iter *value, const char *signature)
+_connman_field_parse_value(Connman_Field *field, const char *key, Eldbus_Message_Iter *value, const char *signature)
 {
    if (!strcmp(key, "Type"))
      {
@@ -848,8 +875,7 @@ _parse_field_value(Connman_Field *field, const char *key,
 }
 
 static Eina_Bool
-_parse_field(Connman_Field *field, Eldbus_Message_Iter *value,
-             const char *signature EINA_UNUSED)
+_connman_field_parse(Connman_Field *field, Eldbus_Message_Iter *value, const char *signature EINA_UNUSED)
 {
    Eldbus_Message_Iter *array, *dict;
 
@@ -868,7 +894,7 @@ _parse_field(Connman_Field *field, Eldbus_Message_Iter *value,
         if (!sig2)
           return EINA_FALSE;
 
-        if (!_parse_field_value(field, key, var, sig2))
+        if (!_connman_field_parse_value(field, key, var, sig2))
           {
              free(sig2);
              return EINA_FALSE;
@@ -879,33 +905,63 @@ _parse_field(Connman_Field *field, Eldbus_Message_Iter *value,
    return EINA_TRUE;
 }
 
+static void
+_connman_agent_auth_dict_append_basic(Eldbus_Message_Iter *array, const char *key, const char *val)
+{
+   Eldbus_Message_Iter *dict, *variant;
+
+   eldbus_message_iter_arguments_append(array, "{sv}", &dict);
+   eldbus_message_iter_basic_append(dict, 's', key);
+   variant = eldbus_message_iter_container_new(dict, 'v', "s");
+   eldbus_message_iter_basic_append(variant, 's', val ?: "");
+   eldbus_message_iter_container_close(dict, variant);
+   eldbus_message_iter_container_close(array, dict);
+}
+
+static void
+_connman_agent_auth_send(void *data, const Eina_Array *fields)
+{
+   Eldbus_Message *reply;
+   Eldbus_Message_Iter *iter, *array;
+   const char *f, *fprev;
+   unsigned int i;
+   Eina_Array_Iterator it;
+
+   if (!fields)
+     {
+        reply = eldbus_message_error_new(data,
+                                       "net.connman.Agent.Error.Canceled",
+                                       "User canceled dialog");
+        eldbus_connection_send(dbus_conn, reply, NULL, NULL, -1);
+        return;
+     }
+   reply = eldbus_message_method_return_new(data);
+   iter = eldbus_message_iter_get(reply);
+   eldbus_message_iter_arguments_append(iter, "a{sv}", &array);
+
+   EINA_ARRAY_ITER_NEXT(fields, i, f, it)
+     {
+        if (i % 2)
+          _connman_agent_auth_dict_append_basic(array, fprev, f);
+        else
+          fprev = f;
+     }
+   eldbus_message_iter_container_close(iter, array);
+
+   eldbus_connection_send(dbus_conn, reply, NULL, NULL, -1);
+}
+
 static Eldbus_Message *
 _connman_agent_request_input(const Eldbus_Service_Interface *iface EINA_UNUSED, const Eldbus_Message *msg)
 {
-#warning FIXME
-#if 0
-   const Eina_List *l;
    Eldbus_Message_Iter *array, *dict;
    const char *path;
-   /* Discard previous requests */
-   // if msg is the current agent msg? eek.
-   if (agent->msg == msg) return NULL;
-
-   if (agent->msg)
-     eldbus_message_unref(agent->msg);
-   agent->msg = eldbus_message_ref((Eldbus_Message *)msg);
-
-   EINA_LIST_FOREACH(ctxt->instances, l, inst)
-     econnman_popup_del(inst);
-
-   if (agent->dialog)
-     e_object_del(E_OBJECT(agent->dialog));
-   agent->dialog = _dialog_new(agent);
-   EINA_SAFETY_ON_NULL_GOTO(agent->dialog, err);
+   Eina_Array *arr = NULL;
 
    if (!eldbus_message_arguments_get(msg, "oa{sv}", &path, &array))
-     goto err;
+     return eldbus_message_method_return_new(msg);
 
+   /* FIXME: WISPr - net.connman.Agent.Error.LaunchBrowser */
    while (eldbus_message_iter_get_and_next(array, 'e', &dict))
      {
         Eldbus_Message_Iter *var;
@@ -917,7 +973,7 @@ _connman_agent_request_input(const Eldbus_Service_Interface *iface EINA_UNUSED, 
         signature = eldbus_message_iter_signature_get(var);
         if (!signature) goto err;
 
-        if (!_parse_field(&field, var, signature))
+        if (!_connman_field_parse(&field, var, signature))
           {
              free(signature);
              goto err;
@@ -927,21 +983,25 @@ _connman_agent_request_input(const Eldbus_Service_Interface *iface EINA_UNUSED, 
         DBG("AGENT Got field:\n"
             "\tName: %s\n"
             "\tType: %s\n"
-            "\tRequirement: %s\n"
+            "\tRequirement: %d\n"
             "\tAlternates: (omit array)\n"
             "\tValue: %s",
             field.name, field.type, field.requirement, field.value);
 
-        _dialog_field_add(agent, &field);
+        if (field.requirement != CONNMAN_FIELD_STATE_MANDATORY) continue;
+        if (!arr) arr = eina_array_new(1);
+        eina_array_push(arr, eina_stringshare_add(field.name));
      }
-
+   wireless_authenticate(arr, _connman_agent_auth_send, eldbus_message_ref((Eldbus_Message *)msg));
+   if (arr)
+     while (eina_array_count(arr))
+       eina_stringshare_del(eina_array_pop(arr));
+   eina_array_free(arr);
    return NULL;
 
 err:
-   eldbus_message_unref((Eldbus_Message *)msg);
-   agent->msg = NULL;
+   eina_array_free(arr);
    WRN("Failed to parse msg");
-#endif
    return eldbus_message_method_return_new(msg);
 }
 
@@ -951,9 +1011,7 @@ _connman_agent_cancel(const Eldbus_Service_Interface *iface EINA_UNUSED, const E
    Eldbus_Message *reply = eldbus_message_method_return_new(msg);
 
    DBG("Agent canceled");
-#warning FIXME
-   //if (agent->dialog)
-     //e_object_del(E_OBJECT(agent->dialog));
+   wireless_authenticate_cancel();
 
    return reply;
 }

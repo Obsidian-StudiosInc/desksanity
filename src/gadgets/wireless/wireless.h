@@ -54,14 +54,21 @@ typedef enum
    WIRELESS_NETWORK_IPV6_PRIVACY_PREFERRED,
 } Wireless_Network_IPv6_Privacy;
 
-typedef struct Wireless_Network
+typedef struct Wireless_Network Wireless_Network;
+
+typedef Eina_Bool (*Wireless_Network_Connect_Cb)(Wireless_Network *);
+
+struct Wireless_Network
 {
+   Eina_Stringshare *path;//dbus path
    Eina_Stringshare *name;
    Wireless_Network_Security security;
    Wireless_Network_State state;
    Wireless_Service_Type type;
    uint8_t strength;
-} Wireless_Network;
+
+   Wireless_Network_Connect_Cb connect_cb;
+};
 
 typedef struct Wireless_Connection
 {
@@ -84,6 +91,8 @@ typedef struct Wireless_Connection
    Eina_Bool ipv6 : 1;
 } Wireless_Connection;
 
+typedef void (*Wireless_Auth_Cb)(void *data, const Eina_Array *fields);
+
 extern Eldbus_Connection *dbus_conn;
 
 EINTERN void wireless_service_type_available_set(Eina_Bool *avail);
@@ -91,5 +100,6 @@ EINTERN void wireless_service_type_enabled_set(Eina_Bool *enabled);
 EINTERN void wireless_wifi_current_networks_set(Wireless_Connection **current);
 EINTERN Eina_Array *wireless_wifi_networks_set(Eina_Array *networks);
 EINTERN void wireless_airplane_mode_set(Eina_Bool enabled);
-
+EINTERN void wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data);
+EINTERN void wireless_authenticate_cancel(void);
 #endif
