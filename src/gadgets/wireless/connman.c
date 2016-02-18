@@ -851,8 +851,23 @@ _connman_field_parse_value(Connman_Field *field, const char *key, Eldbus_Message
 
    if (!strcmp(key, "Requirement"))
      {
+        const char *req;
+        const char *types[] =
+        {
+           [CONNMAN_FIELD_STATE_MANDATORY] = "mandatory",
+           [CONNMAN_FIELD_STATE_OPTIONAL] = "optional",
+           [CONNMAN_FIELD_STATE_ALTERNATE] = "alternate",
+           [CONNMAN_FIELD_STATE_INFO] = "informational",
+        };
+        int i;
         EINA_SAFETY_ON_FALSE_RETURN_VAL(signature[0] == 's', EINA_FALSE);
-        eldbus_message_iter_basic_get(value, &field->requirement);
+        eldbus_message_iter_basic_get(value, &req);
+        for (i = 0; i <= CONNMAN_FIELD_STATE_INFO; i++)
+          if (!strcmp(req, types[i]))
+            {
+               field->requirement = i;
+               break;
+            }
         return EINA_TRUE;
      }
 
@@ -1071,10 +1086,12 @@ _connman_start(void)
      NULL, -1, "");
 
    agent_iface = eldbus_service_interface_register(dbus_conn, CONNMAN_AGENT_PATH, &desc);
+   eldbus_proxy_call(proxy_manager, "RegisterAgent",
+                       _connman_manager_agent_register, NULL, -1, "o", CONNMAN_AGENT_PATH);
 }
 
 static void
-_connman_end(void)
+_connman_end(Eina_Bool killed)
 {
    Eldbus_Object *obj;
    int i;
@@ -1092,10 +1109,14 @@ _connman_end(void)
      }
    E_FREE_FUNC(pending_getservices, eldbus_pending_cancel);
    E_FREE_FUNC(pending_getproperties_manager, eldbus_pending_cancel);
-   E_FREE_LIST(signal_handlers, eldbus_signal_handler_del);
+   if (killed)
+     signal_handlers = eina_list_free(signal_handlers);
+   else
+     E_FREE_LIST(signal_handlers, eldbus_signal_handler_del);
 
    obj = eldbus_proxy_object_get(proxy_manager);
    E_FREE_FUNC(proxy_manager, eldbus_proxy_unref);
+   E_FREE_FUNC(agent_iface, eldbus_service_object_unregister);
 }
 
 static void
@@ -1104,7 +1125,7 @@ _connman_name_owner_changed(void *data EINA_UNUSED, const char *bus EINA_UNUSED,
    if (to[0])
      _connman_start();
    else
-     _connman_end();
+     _connman_end(1);
 }
 
 EINTERN void
@@ -1125,14 +1146,13 @@ EINTERN void
 connman_shutdown(void)
 {
    int i;
-   E_FREE_FUNC(agent_iface, eldbus_service_object_unregister);
    for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
      {
         E_FREE_FUNC(connman_services_map[i], eina_hash_free);
         E_FREE(connman_current_connection[i]);
         connman_current_service[i] = NULL;
      }
-   _connman_end();
+   _connman_end(0);
    eldbus_name_owner_changed_callback_del(dbus_conn, CONNMAN_BUS_NAME, _connman_name_owner_changed, NULL);
    eina_log_domain_unregister(_connman_log_dom);
    _connman_log_dom = -1;

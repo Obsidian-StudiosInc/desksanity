@@ -591,14 +591,14 @@ _bryce_gadgets_menu_close(void *data, Evas_Object *obj)
    evas_object_layer_set(b->bryce, b->layer);
    evas_object_hide(obj);
    evas_object_del(obj);
-   if (!b->mouse_in)
+   if (b->autohide && (!b->mouse_in))
      _bryce_autohide_hide(b);
 }
 
 static Eina_Bool
-_bryce_gadgets_menu_key()
+_bryce_gadgets_menu_key(void *d EINA_UNUSED, Ecore_Event_Key *ev)
 {
-   return EINA_TRUE;
+   return strcmp(ev->key, "Escape");
 }
 
 static void
@@ -617,7 +617,7 @@ _bryce_gadgets_menu(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUS
    evas_object_show(comp_object);
    evas_object_layer_set(b->bryce, E_LAYER_POPUP);
    evas_object_size_hint_min_get(editor, &w, &h);
-   evas_object_resize(comp_object, 300 * e_scale, h * e_scale);
+   evas_object_resize(comp_object, MAX(300 * e_scale, w), h * e_scale);
    e_comp_object_util_center(comp_object);
    e_comp_object_util_autoclose(comp_object, _bryce_gadgets_menu_close, _bryce_gadgets_menu_key, b);
 }

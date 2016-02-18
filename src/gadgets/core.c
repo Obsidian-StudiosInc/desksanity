@@ -170,6 +170,7 @@ _gadget_popup(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Z_Gadget_Site *zgs = data;
 
+   if (event_info) elm_object_tree_focus_allow_set(event_info, 0);
    evas_object_smart_callback_call(zgs->layout, "gadget_popup", event_info);
 }
 
@@ -226,6 +227,7 @@ _gadget_object_create(Z_Gadget_Config *zgc)
 
    evas_object_event_callback_add(g, EVAS_CALLBACK_DEL, _gadget_del, zgc);
    _gadget_reparent(zgc->site, zgc);
+   elm_object_tree_focus_allow_set(zgc->gadget, 0);
    evas_object_raise(zgc->site->events);
 
    evas_object_smart_callback_call(zgc->site->layout, "gadget_created", g);
@@ -299,7 +301,7 @@ _site_gadget_resize(Evas_Object *g, int w, int h, Evas_Coord *ww, Evas_Coord *hh
         if ((mxw >= 0) && (mxw < *ow)) *ow = mxw;
         if ((mxh >= 0) && (mxh < *oh)) *oh = mxh;
      }
-
+   //fprintf(stderr, "%s: %dx%d\n", zgc->type, *ow, *oh);
    evas_object_resize(zgc->display, *ow, *oh);
 }
 
@@ -395,9 +397,9 @@ _site_layout_orient(Evas_Object *o, Z_Gadget_Site *zgs)
      }
 
    if (IS_HORIZ(zgs->orient))
-     zgs->cur_size = abs((ax * w) - xx) - x;
+     zgs->cur_size = abs(xx - x);
    else if (IS_VERT(zgs->orient))
-     zgs->cur_size = abs((ay * h) - yy) - y;
+     zgs->cur_size = abs(yy - y);
 
    evas_object_size_hint_min_set(o,
      IS_HORIZ(zgs->orient) ? zgs->cur_size : w,
@@ -863,7 +865,7 @@ _gadget_menu_remove(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUS
 {
    Z_Gadget_Config *zgc = data;
 
-   evas_object_smart_callback_call(zgc->site->layout, "gadget_removed", zgc->display);
+   evas_object_smart_callback_call(zgc->site->layout, "gadget_removed", zgc->gadget);
    zgc->site->gadgets = eina_list_remove(zgc->site->gadgets, zgc);
    evas_object_smart_need_recalculate_set(zgc->site->layout, 1);
    _gadget_free(zgc);

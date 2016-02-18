@@ -121,7 +121,7 @@ z_gadget_editor_add(Evas_Object *parent, Evas_Object *site)
    E_EXPAND(list);
    E_FILL(list);
    elm_list_mode_set(list, ELM_LIST_COMPRESS);
-   elm_scroller_content_min_limit(list, 0, 1);
+   elm_scroller_content_min_limit(list, 1, 1);
    tempsite = z_gadget_site_add(Z_GADGET_SITE_ORIENT_HORIZONTAL, NULL);
    z_gadget_site_gravity_set(tempsite, Z_GADGET_SITE_GRAVITY_NONE);
 

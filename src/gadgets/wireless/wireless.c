@@ -119,6 +119,7 @@ _wireless_popup_list_populate(Instance *inst)
    Eina_Iterator *it;
    Wireless_Network *wn;
 
+   if (!wifi_networks) return;
    it = eina_array_iterator_new(wifi_networks);
    EINA_ITERATOR_FOREACH(it, wn)
      {
@@ -402,6 +403,8 @@ wireless_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient)
         e_theme_edje_object_set(g, NULL, "e/modules/wireless/wifi");
         elm_object_signal_emit(g, "e,state,default", "e");
         _wifi_icon_signal(g, WIRELESS_NETWORK_STATE_ONLINE, 100);
+        evas_object_show(g);
+        elm_box_pack_end(inst->box, g);
         evas_object_size_hint_aspect_set(inst->box, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
      }
    else
@@ -535,8 +538,9 @@ _wireless_auth_del(void *data, Evas_Object *popup)
    if (!p->sent)
      p->cb(p->data, NULL);
    free(p);
-   if (popup == wireless_auth_popup->popup)
-     wireless_auth_popup = NULL;
+   wireless_auth_popup = NULL;
+   evas_object_hide(popup);
+   evas_object_del(popup);
    if (!wireless_auth_pending) return;
    wireless_auth_popup = eina_list_data_get(wireless_auth_pending);
    wireless_auth_pending = eina_list_remove_list(wireless_auth_pending, wireless_auth_pending);
@@ -550,7 +554,7 @@ _wireless_auth_send(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    Wireless_Auth_Popup *p = data;
    Eina_Array *arr = NULL;
    Evas_Object *tb, *o;
-   unsigned int row = 0;
+   unsigned int row = 1;
 
    tb = evas_object_data_get(obj, "table");
    do
@@ -573,7 +577,7 @@ _wireless_auth_send(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    eina_array_free(arr);
 }
 
-static void
+static Evas_Object *
 _wireless_auth_table_row(Evas_Object *tb, const char *name, Wireless_Auth_Popup *p, int *row)
 {
    Evas_Object *lbl, *entry, *ck;
@@ -587,13 +591,13 @@ _wireless_auth_table_row(Evas_Object *tb, const char *name, Wireless_Auth_Popup 
 
    entry = elm_entry_add(tb);
    evas_object_show(entry);
-   E_ALIGN(entry, 0, -1);
+   E_ALIGN(entry, -1, -1);
    E_EXPAND(entry);
    elm_entry_single_line_set(entry, 1);
    evas_object_data_set(entry, "table", tb);
    evas_object_smart_callback_add(entry, "activated", _wireless_auth_send, p);
-   elm_table_pack(tb, lbl, 1, *row, 1, 1);
-   if (strncmp(name, "Pass", 4)) return;
+   elm_table_pack(tb, entry, 1, *row, 1, 1);
+   if (strncmp(name, "Pass", 4)) return NULL;
    elm_entry_password_set(entry, 1);
 
    ck = elm_check_add(tb);
@@ -601,13 +605,14 @@ _wireless_auth_table_row(Evas_Object *tb, const char *name, Wireless_Auth_Popup 
    E_ALIGN(ck, 0, -1);
    snprintf(buf, sizeof(buf), "Show %s", name);
    elm_object_text_set(ck, buf);
-   elm_table_pack(tb, lbl, 0, ++(*row), 2, 1);
+   elm_table_pack(tb, ck, 0, ++(*row), 2, 1);
+   return entry;
 }
 
 EINTERN void
 wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data)
 {
-   Evas_Object *popup, *tb, *lbl;
+   Evas_Object *popup, *tb, *lbl, *entry = NULL;
    Instance *inst;
    Eina_List *l;
    Eina_Iterator *it;
@@ -641,7 +646,10 @@ wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data)
    it = eina_array_iterator_new(fields);
    EINA_ITERATOR_FOREACH(it, f)
      {
-        _wireless_auth_table_row(tb, f, p, &row);
+        Evas_Object *o;
+
+        o = _wireless_auth_table_row(tb, f, p, &row);
+        if (!entry) entry = o;
         row++;
      }
    popup = e_comp_object_util_add(popup, E_COMP_OBJECT_TYPE_NONE);
@@ -656,6 +664,7 @@ wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data)
         wireless_auth_popup = p;
         evas_object_show(popup);
         e_comp_object_util_autoclose(popup, _wireless_auth_del, _wireless_popup_key, p);
+        elm_object_focus_set(entry, 1);
      }
 }
 
