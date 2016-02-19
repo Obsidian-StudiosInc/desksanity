@@ -171,6 +171,18 @@ group { name: "e/modules/wireless/wifi"; nomouse;
       public message(Msg_Type:type, id, ...) {
          if ((type == MSG_INT_SET) && (id == 1)) {
             new state = getarg(2), signl = getarg(3);
+            if (state <= 1) {
+               set_state(PART:"wifi_1", "default", 0.0);
+               set_state(PART:"wifi_2", "default", 0.0);
+               set_state(PART:"wifi_3", "default", 0.0);
+               set_state(PART:"led", "default", 0.0);
+            }
+            if (state == 1) {
+               run_program(PROGRAM:"connecting");
+               run_program(PROGRAM:"connecting_wifi");
+               return;
+            }
+            stop_programs_on(PART:"led");
             if (signl <= 14) {
                set_state(PART:"wifi_1", "default", 0.0);
                set_state(PART:"wifi_2", "default", 0.0);
@@ -206,12 +218,7 @@ group { name: "e/modules/wireless/wifi"; nomouse;
                set_state(PART:"wifi_2", "visible", 0.0);
                set_state(PART:"wifi_3", "visible", 0.0);
             }
-            if ((state == 1)) {
-               set_state(PART:"led", "default", 0.0);
-               run_program(PROGRAM:"connecting");
-               return;
-            }
-            else if ((state == 2)) { set_state(PART:"led", "connected", 0.0); }
+            if ((state == 2)) { set_state(PART:"led", "connected", 0.0); }
             else if ((state == 3)) { set_state(PART:"led", "online", 0.0); }
             else { set_state(PART:"led", "default", 0.0); }
          }
@@ -400,19 +407,42 @@ group { name: "e/modules/wireless/wifi"; nomouse;
          }
       }
    }
-   
    programs {
-      program { name: "connecting";
-         action: STATE_SET "connected" 0.0;
-         target: "led";
-         in: 0.3 0.0;
-         after:  "connecting2";
+      program { "connecting_wifi";
+         action: STATE_SET "default";
+         targets: "wifi_1" "wifi_2" "wifi_3";
+         sequence {
+            action: STATE_SET "partly";
+            target: "wifi_1";
+            transition: LINEAR 0.085;
+            action: STATE_SET "visible";
+            target: "wifi_1";
+            transition: LINEAR 0.085;
+            action: STATE_SET "partly";
+            target: "wifi_2";
+            transition: LINEAR 0.085;
+            action: STATE_SET "visible";
+            target: "wifi_2";
+            transition: LINEAR 0.085;
+            action: STATE_SET "partly";
+            target: "wifi_3";
+            transition: LINEAR 0.085;
+            action: STATE_SET "visible";
+            target: "wifi_3";
+            transition: LINEAR 0.085;
+            after: "connecting_wifi";
+         }
       }
-      program { name: "connecting2";
-         action: STATE_SET "default" 0.0;
+      program { "connecting";
+         action: STATE_SET "connected";
          target: "led";
          in: 0.3 0.0;
-         after:  "connecting";
+         sequence {
+             action: STATE_SET "default";
+             target: "led";
+             in: 0.3 0.0;
+             after:  "connecting";
+         }
       }
       target_group: "clips" "clip_exclam" "clip_wifi";
       program {

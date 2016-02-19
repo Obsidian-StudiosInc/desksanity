@@ -47,11 +47,24 @@ static Eina_List *instances;
 static Eina_List *wireless_auth_pending;
 static Wireless_Auth_Popup *wireless_auth_popup;
 
+
+#undef DBG
+#undef INF
+#undef WRN
+#undef ERR
+
+#define DBG(...) EINA_LOG_DOM_DBG(_wireless_gadget_log_dom, __VA_ARGS__)
+#define INF(...) EINA_LOG_DOM_INFO(_wireless_gadget_log_dom, __VA_ARGS__)
+#define WRN(...) EINA_LOG_DOM_WARN(_wireless_gadget_log_dom, __VA_ARGS__)
+#define ERR(...) EINA_LOG_DOM_ERR(_wireless_gadget_log_dom, __VA_ARGS__)
+static int _wireless_gadget_log_dom = -1;
+
 static void
 _wifi_icon_signal(Evas_Object *icon, int state, int strength)
 {
    Edje_Message_Int_Set *msg;
 
+   DBG("icon msg: %d %d%%", state, strength);
    msg = alloca(sizeof(Edje_Message_Int_Set) + sizeof(int));
    msg->count = 2;
    msg->val[0] = state;
@@ -74,6 +87,7 @@ _wifi_icon_init(Evas_Object *icon, Wireless_Network *wn)
    if (!wn)
      {
         elm_object_signal_emit(icon, "e,state,default", "e");
+        elm_object_signal_emit(icon, "e,state,unsecured", "e");
         return;
      }
    if (wn->state == WIRELESS_NETWORK_STATE_FAILURE)
@@ -228,7 +242,7 @@ _wireless_gadget_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, v
    e_comp_object_util_autoclose(inst->popup.popup, NULL, _wireless_popup_key, NULL);
 
    zone = e_zone_current_get();
-   evas_object_resize(inst->popup.popup, zone->w / 5, zone->h / 4);
+   evas_object_resize(inst->popup.popup, zone->w / 5, zone->h / 3);
    evas_object_show(inst->popup.popup);
    evas_object_event_callback_add(inst->popup.popup, EVAS_CALLBACK_DEL, _wireless_popup_del, inst);
 }
@@ -317,6 +331,10 @@ wireless_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void
    evas_object_hide(inst->popup.popup);
    evas_object_del(inst->popup.popup);
    free(inst);
+
+   if (instances) return;
+   eina_log_domain_unregister(_wireless_gadget_log_dom);
+   _wireless_gadget_log_dom = -1;
 }
 
 static void
@@ -348,6 +366,7 @@ _wireless_gadget_refresh(Instance *inst)
                     elm_object_tooltip_content_cb_set(g, tooltip_cb[type], inst, NULL);
                   evas_object_event_callback_add(g, EVAS_CALLBACK_MOUSE_DOWN, _wireless_gadget_mouse_down, inst);
                }
+             DBG("Updating icon for %d", type);
              _wifi_icon_init(inst->icon[type], wireless_current[type] ? wireless_current[type]->wn : NULL);
              evas_object_hide(inst->icon[type]);
              avail++;
@@ -362,6 +381,7 @@ _wireless_gadget_refresh(Instance *inst)
         /* only show ethernet if it's connected or there's no wifi available */
         if ((!inst->icon[WIRELESS_SERVICE_TYPE_WIFI]) ||
             (wireless_current[type] &&
+             wireless_current[type]->wn &&
             (wireless_current[type]->wn->state == WIRELESS_NETWORK_STATE_ONLINE)))
           {
              elm_box_pack_end(inst->box, inst->icon[type]);
@@ -387,6 +407,8 @@ wireless_create(Evas_Object *parent, int *id, Z_Gadget_Site_Orient orient)
    Evas_Object *g;
    Instance *inst;
 
+   if (!instances)
+     _wireless_gadget_log_dom = eina_log_domain_register("wireless", EINA_COLOR_CYAN);
    inst = E_NEW(Instance, 1);
    inst->orient = orient;
    inst->popup.type = inst->tooltip.type = -1;
@@ -418,6 +440,7 @@ EINTERN void
 wireless_gadget_init(void)
 {
    z_gadget_type_add("Wireless", wireless_create);
+   
 }
 
 EINTERN void
@@ -477,11 +500,7 @@ wireless_wifi_current_networks_set(Wireless_Connection **current)
                     }
                }
           }
-        for (type = 0; type < WIRELESS_SERVICE_TYPE_LAST; type++)
-          {
-             if (inst->icon[type] && wireless_current[type])
-               _wifi_icon_init(inst->icon[type], wireless_current[type]->wn);
-          }
+        _wireless_gadget_refresh(inst);
         type = inst->tooltip.type;
         if (type < 0) continue;
         if (prev[type] &&
