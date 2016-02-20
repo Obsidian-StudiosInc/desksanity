@@ -61,7 +61,7 @@ Z_API Eina_Iterator *z_gadget_type_iterator_get(void);
 
 Z_API Evas_Object *z_gadget_util_layout_style_init(Evas_Object *g, Evas_Object *style);
 Z_API void z_gadget_util_ctxpopup_place(Evas_Object *g, Evas_Object *ctx);
-
+Z_API void z_gadget_util_allow_deny_ctxpopup(Evas_Object *g, const char *text, Evas_Smart_Cb allow_cb, Evas_Smart_Cb deny_cb, const void *data);
 
 Z_API Evas_Object *z_gadget_editor_add(Evas_Object *parent, Evas_Object *site);
 #endif

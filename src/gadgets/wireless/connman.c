@@ -11,6 +11,9 @@
 #define CONNMAN_AGENT_IFACE "net.connman.Agent"
 #define CONNMAN_AGENT_PATH "/org/enlightenment/connman/agent"
 
+#define CONNMAN_SERVICE_TYPE_ITER(i) \
+  for ((i) = 0; (i) < CONNMAN_SERVICE_TYPE_LAST; (i)++)
+
 #define MILLI_PER_SEC 1000
 #define CONNMAN_CONNECTION_TIMEOUT 60 * MILLI_PER_SEC
 
@@ -97,6 +100,12 @@ typedef struct
          Wireless_Network_IPv6_Privacy privacy;
       } v6;
    } ip;
+
+   /* Proxy */
+   unsigned int proxy_type;
+   Eina_Stringshare *proxy_url;
+   Eina_Array *proxy_servers;
+   Eina_Array *proxy_excludes;
    Eina_Bool ipv6 : 1;
 } Connman_Service;
 
@@ -185,7 +194,7 @@ _connman_update_technologies(void)
    Eina_Bool avail[CONNMAN_SERVICE_TYPE_LAST];
    int i;
 
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      avail[i] = connman_technology[i].type > -1;
    wireless_service_type_available_set(avail);
 }
@@ -196,7 +205,7 @@ _connman_update_enabled_technologies(void)
    Eina_Bool enabled[CONNMAN_SERVICE_TYPE_LAST];
    int i;
 
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      enabled[i] = connman_technology[i].powered;
    wireless_service_type_enabled_set(enabled);
 }
@@ -375,6 +384,18 @@ _connman_service_free(Connman_Service *cs)
    else
      eina_stringshare_del(cs->ip.v4.netmask);
 
+   eina_stringshare_del(cs->proxy_url);
+
+   if (cs->proxy_servers)
+     while (eina_array_count(cs->proxy_servers))
+       eina_stringshare_del(eina_array_pop(cs->proxy_servers));
+   eina_array_free(cs->proxy_servers);
+
+   if (cs->proxy_excludes)
+     while (eina_array_count(cs->proxy_excludes))
+       eina_stringshare_del(eina_array_pop(cs->proxy_excludes));
+   eina_array_free(cs->proxy_excludes);
+
    eina_stringshare_del(cs->name);
    eina_stringshare_del(cs->path);
    eldbus_signal_handler_del(cs->handler);
@@ -461,6 +482,8 @@ _connman_service_parse_prop_changed(Connman_Service *cs, const char *prop_name, 
                     cs->method = WIRELESS_NETWORK_IPV4_METHOD_DHCP;
                   else if (!strcmp(val, "manual"))
                     cs->method = WIRELESS_NETWORK_IPV4_METHOD_MANUAL;
+                  else if (!strcmp(val, "fixed"))
+                    cs->method = WIRELESS_NETWORK_IPV4_METHOD_FIXED;
                }
              else if (!strcmp(name, "Address"))
                {
@@ -476,6 +499,67 @@ _connman_service_parse_prop_changed(Connman_Service *cs, const char *prop_name, 
                {
                   EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
                   eina_stringshare_replace(&cs->gateway, val);
+               }
+          }
+     }
+   else if (!strcmp(prop_name, "Proxy"))
+     {
+        Eldbus_Message_Iter *array, *dict;
+
+        EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(value, "a{sv}", &array));
+        while (eldbus_message_iter_get_and_next(array, 'e', &dict))
+          {
+             Eldbus_Message_Iter *var;
+             const char *name, *val;
+
+             EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(dict, "sv", &name, &var));
+             if (!strcmp(name, "Method"))
+               {
+                  cs->proxy_type = WIRELESS_PROXY_TYPE_DIRECT;
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  if (!strcmp(val, "manual"))
+                    cs->proxy_type = WIRELESS_PROXY_TYPE_MANUAL;
+                  else if (!strcmp(val, "auto"))
+                    cs->proxy_type = WIRELESS_PROXY_TYPE_AUTO;
+               }
+             else if (!strcmp(name, "URL"))
+               {
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(var, "s", &val));
+                  eina_stringshare_replace(&cs->proxy_url, val);
+               }
+             else if (!strcmp(name, "Servers"))
+               {
+                  Eldbus_Message_Iter *itr_array;
+                  const char *s;
+
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(value, "as",
+                                                                        &itr_array));
+                  if (cs->proxy_servers)
+                    {
+                       while (eina_array_count(cs->proxy_servers))
+                         eina_stringshare_del(eina_array_pop(cs->proxy_servers));
+                    }
+                  else
+                    cs->proxy_servers = eina_array_new(1);
+                  while (eldbus_message_iter_get_and_next(itr_array, 's', &s))
+                    eina_array_push(cs->proxy_servers, eina_stringshare_add(s));
+               }
+             else if (!strcmp(name, "Excludes"))
+               {
+                  Eldbus_Message_Iter *itr_array;
+                  const char *s;
+
+                  EINA_SAFETY_ON_FALSE_RETURN(eldbus_message_iter_arguments_get(value, "as",
+                                                                        &itr_array));
+                  if (cs->proxy_excludes)
+                    {
+                       while (eina_array_count(cs->proxy_excludes))
+                         eina_stringshare_del(eina_array_pop(cs->proxy_excludes));
+                    }
+                  else
+                    cs->proxy_excludes = eina_array_new(1);
+                  while (eldbus_message_iter_get_and_next(itr_array, 's', &s))
+                    eina_array_push(cs->proxy_excludes, eina_stringshare_add(s));
                }
           }
      }
@@ -583,7 +667,7 @@ _connman_technology_event_property(void *data, const Eldbus_Message *msg)
    Connman_Technology *ct = NULL;
    int i;
 
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      if (data == connman_technology[i].proxy)
        {
           ct = &connman_technology[i];
@@ -660,7 +744,7 @@ _connman_manager_getservices(void *data EINA_UNUSED, const Eldbus_Message *msg, 
    Eina_Bool update[CONNMAN_SERVICE_TYPE_LAST] = {0};
 
    pending_getservices = NULL;
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      eina_hash_free_buckets(connman_services[i]);
    if (eldbus_message_error_get(msg, &name, &text))
      {
@@ -686,7 +770,7 @@ _connman_manager_getservices(void *data EINA_UNUSED, const Eldbus_Message *msg, 
         cs = _connman_service_new(path, inner_array);
         update[cs->type] = 1;
      }
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      if (update[i]) _connman_update_networks(i);
 }
 
@@ -726,7 +810,7 @@ _connman_manager_gettechnologies(void *data EINA_UNUSED, const Eldbus_Message *m
 
         if (!eldbus_message_iter_arguments_get(s, "oa{sv}", &path, &inner_array))
           continue;
-        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+        CONNMAN_SERVICE_TYPE_ITER(i)
           {
              if (strcmp(path, paths[i])) continue;
              ct = &connman_technology[i];
@@ -779,7 +863,7 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
 
    while (eldbus_message_iter_get_and_next(removed, 'o', &path))
      {
-        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+        CONNMAN_SERVICE_TYPE_ITER(i)
           {
              if (!eina_hash_del_by_key(connman_services[i], path)) continue;
              DBG("Removed service: %s", path);
@@ -797,7 +881,7 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
         if (!eldbus_message_iter_arguments_get(s, "oa{sv}", &path, &array))
           continue;
 
-        for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+        CONNMAN_SERVICE_TYPE_ITER(i)
           {
              cs = eina_hash_find(connman_services[i], path);
              if (!cs) continue;
@@ -812,7 +896,7 @@ _connman_manager_event_services(void *data EINA_UNUSED, const Eldbus_Message *ms
              update[cs->type] = 1;
           }
      }
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      if (update[i]) _connman_update_networks(i);
 }
 
@@ -849,10 +933,28 @@ _connman_agent_report_error(const Eldbus_Service_Interface *iface EINA_UNUSED,
 }
 
 static Eldbus_Message *
-_connman_agent_request_browser(const Eldbus_Service_Interface *iface EINA_UNUSED,
-                       const Eldbus_Message *msg EINA_UNUSED)
+_connman_agent_request_browser(const Eldbus_Service_Interface *iface EINA_UNUSED, const Eldbus_Message *msg)
 {
-#warning FIXME
+   const char *path, *url;
+   int i;
+   Connman_Service *cs;
+   Wireless_Network *wn;
+
+   if (!eldbus_message_arguments_get(msg, "ss", &path, &url))
+     {
+        ERR("Could not parse message %p", msg);
+        return NULL;
+     }
+
+   CONNMAN_SERVICE_TYPE_ITER(i)
+     {
+        cs = eina_hash_find(connman_services[i], path);
+        if (cs) break;
+     }
+   if (!cs) return NULL;
+   wn = eina_hash_find(connman_services_map[i], &cs);
+   EINA_SAFETY_ON_NULL_RETURN_VAL(wn, NULL);
+   wireless_authenticate_external(wn, url);
    return NULL;
 }
 
@@ -1084,7 +1186,7 @@ _connman_start(void)
    Eldbus_Object *obj;
    int i;
 
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      connman_services[i] = eina_hash_string_superfast_new((Eina_Free_Cb)_connman_service_free);
 
    obj = eldbus_object_get(dbus_conn, CONNMAN_BUS_NAME, "/");
@@ -1115,7 +1217,7 @@ _connman_end(Eina_Bool killed)
    if (!proxy_manager) return;
    eldbus_proxy_call(proxy_manager, "UnregisterAgent", NULL, NULL, -1, "o", CONNMAN_AGENT_PATH);
 
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      {
         E_FREE_FUNC(connman_services[i], eina_hash_free);
         if (!connman_technology[i].proxy) continue;
@@ -1147,7 +1249,7 @@ connman_init(void)
    int i;
 
    if (_connman_log_dom > -1) return;
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      connman_technology[i].type = -1;
    eldbus_name_owner_changed_callback_add(dbus_conn, CONNMAN_BUS_NAME,
                                          _connman_name_owner_changed,
@@ -1159,7 +1261,7 @@ EINTERN void
 connman_shutdown(void)
 {
    int i;
-   for (i = 0; i < CONNMAN_SERVICE_TYPE_LAST; i++)
+   CONNMAN_SERVICE_TYPE_ITER(i)
      {
         E_FREE_FUNC(connman_services_map[i], eina_hash_free);
         E_FREE(connman_current_connection[i]);
@@ -1186,4 +1288,59 @@ connman_technology_enabled_set(Wireless_Service_Type type, Eina_Bool state)
    eldbus_message_iter_container_close(main_iter, var);
 
    eldbus_proxy_send(connman_technology[type].proxy, msg, NULL, NULL, -1);
+}
+
+static void
+_connman_service_edit_cb(void *data EINA_UNUSED, const Eldbus_Message *msg, Eldbus_Pending *pending EINA_UNUSED)
+{
+   const char *name, *text;
+   if (eldbus_message_error_get(msg, &name, &text))
+     {
+        ERR("Could not set properties. %s: %s", name, text);
+     }
+}
+
+EINTERN void
+connman_service_edit(const char *path, Wireless_Connection *wc)
+{
+   int i;
+   Eldbus_Proxy *proxy;
+   Eldbus_Message *msg;
+   Eldbus_Message_Iter *iter, *variant, *array;
+   Connman_Service *cs = NULL;
+   const char *prop[] =
+   {
+      "IPv4.Configuration",
+      "IPv6.Configuration",
+   };
+   const char *method[] =
+   {
+      "off",
+      "manual",
+      "dhcp",
+      "fixed",
+   };
+
+   CONNMAN_SERVICE_TYPE_ITER(i)
+     {
+        cs = eina_hash_find(connman_services[i], path);
+        if (cs) break;
+     }
+   EINA_SAFETY_ON_NULL_RETURN(cs);
+
+   msg = eldbus_proxy_method_call_new(cs->proxy, "SetProperty");
+   iter = eldbus_message_iter_get(msg);
+   eldbus_message_iter_basic_append(iter, 's', prop[cs->ipv6]);
+   variant = eldbus_message_iter_container_new(iter, 'v', "a{sv}");
+   eldbus_message_iter_arguments_append(variant, "a{sv}", &array);
+   _connman_agent_auth_dict_append_basic(array, "Method", method[wc->method]);
+   _connman_agent_auth_dict_append_basic(array, "Address", wc->address);
+   _connman_agent_auth_dict_append_basic(array, "Gateway", wc->gateway);
+   if (wc->ipv6){}//FIXME
+   else
+     _connman_agent_auth_dict_append_basic(array, "Netmask", wc->ip.v4.netmask);
+   eldbus_message_iter_container_close(variant, array);
+   eldbus_message_iter_container_close(iter, variant);
+
+   eldbus_proxy_send(cs->proxy, msg, _connman_service_edit_cb, NULL, -1);
 }

@@ -56,6 +56,14 @@ struct Z_Gadget_Config
    Z_Gadget_Site *site;
    E_Menu *menu;
 
+   struct
+   {
+      Evas_Object *popup;
+      Evas_Smart_Cb allow;
+      Evas_Smart_Cb deny;
+      void *data;
+   } allow_deny;
+
    double x, y; //fixed % positioning
    double w, h; //fixed % sizing
    Evas_Point offset; //offset from mouse down
@@ -184,6 +192,15 @@ _gadget_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void 
 }
 
 static void
+_gadget_util_allow_deny_cleanup(Z_Gadget_Config *zgc)
+{
+   zgc->allow_deny.allow = zgc->allow_deny.deny = NULL;
+   zgc->allow_deny.data = NULL;
+   evas_object_hide(zgc->allow_deny.popup);
+   E_FREE_FUNC(zgc->allow_deny.popup, evas_object_del);
+}
+
+static void
 _gadget_object_free(E_Object *eobj)
 {
    Z_Gadget_Config *zgc;
@@ -198,6 +215,7 @@ _gadget_object_free(E_Object *eobj)
    E_FREE_FUNC(zgc->gadget, evas_object_del);
    E_FREE_FUNC(zgc->cfg_object, evas_object_del);
    E_FREE_FUNC(zgc->style.obj, evas_object_del);
+   _gadget_util_allow_deny_cleanup(zgc);
    E_FREE(zgc->e_obj_inherit);
 }
 
@@ -1614,6 +1632,83 @@ z_gadget_util_ctxpopup_place(Evas_Object *g, Evas_Object *ctx)
         elm_ctxpopup_direction_priority_set(ctx, ELM_CTXPOPUP_DIRECTION_RIGHT, ELM_CTXPOPUP_DIRECTION_LEFT, 0, 0);
      }
    evas_object_move(ctx, x, y);
+}
+
+static void
+_gadget_util_allow(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc = data;
+
+   zgc->allow_deny.allow(zgc->allow_deny.data, zgc->gadget, NULL);
+   _gadget_util_allow_deny_cleanup(zgc);
+}
+
+static void
+_gadget_util_deny(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Z_Gadget_Config *zgc = data;
+
+   zgc->allow_deny.deny(zgc->allow_deny.data, zgc->gadget, NULL);
+   _gadget_util_allow_deny_cleanup(zgc);
+}
+
+Z_API void
+z_gadget_util_allow_deny_ctxpopup(Evas_Object *g, const char *text, Evas_Smart_Cb allow_cb, Evas_Smart_Cb deny_cb, const void *data)
+{
+   Evas_Object *ctx, *tb, *lbl, *bt;
+   Z_Gadget_Config *zgc;
+
+   EINA_SAFETY_ON_NULL_RETURN(g);
+   zgc = evas_object_data_get(g, "__z_gadget");
+   EINA_SAFETY_ON_NULL_RETURN(zgc);
+
+   /* FIXME */
+   EINA_SAFETY_ON_TRUE_RETURN(!!zgc->allow_deny.popup);
+
+   EINA_SAFETY_ON_NULL_RETURN(allow_cb);
+   EINA_SAFETY_ON_NULL_RETURN(deny_cb);
+   EINA_SAFETY_ON_NULL_RETURN(text);
+
+   zgc->allow_deny.allow = allow_cb;
+   zgc->allow_deny.deny = deny_cb;
+   zgc->allow_deny.data = (void*)data;
+
+   ctx = elm_ctxpopup_add(e_comp->elm);
+   elm_object_style_set(ctx, "noblock");
+
+   tb = elm_table_add(ctx);
+   E_EXPAND(tb);
+   E_FILL(tb);
+   evas_object_show(tb);
+   lbl = elm_label_add(ctx);
+   E_FILL(lbl);
+   elm_object_text_set(lbl, text);
+   evas_object_show(lbl);
+   elm_table_pack(tb, lbl, 0, 0, 2, 2);
+
+   bt = elm_button_add(ctx);
+   evas_object_show(bt);
+   E_EXPAND(bt);
+   E_FILL(bt);
+   elm_object_text_set(bt, "Deny");
+   evas_object_smart_callback_add(bt, "clicked", _gadget_util_deny, zgc);
+   elm_table_pack(tb, bt, 0, 2, 1, 1);
+
+   bt = elm_button_add(ctx);
+   evas_object_show(bt);
+   E_EXPAND(bt);
+   E_FILL(bt);
+   elm_object_text_set(bt, "Allow");
+   evas_object_smart_callback_add(bt, "clicked", _gadget_util_allow, zgc);
+   elm_table_pack(tb, bt, 1, 2, 1, 1);
+
+   elm_object_content_set(ctx, tb);
+
+   z_gadget_util_ctxpopup_place(g, ctx);
+   zgc->allow_deny.popup = e_comp_object_util_add(ctx, E_COMP_OBJECT_TYPE_NONE);
+   evas_object_smart_callback_call(g, "gadget_popup", zgc->allow_deny.popup);
+   evas_object_layer_set(zgc->allow_deny.popup, E_LAYER_POPUP);
+   evas_object_show(zgc->allow_deny.popup);
 }
 
 /* FIXME */

@@ -37,6 +37,7 @@ typedef enum
    WIRELESS_NETWORK_IPV4_METHOD_OFF,
    WIRELESS_NETWORK_IPV4_METHOD_MANUAL,
    WIRELESS_NETWORK_IPV4_METHOD_DHCP,
+   WIRELESS_NETWORK_IPV4_METHOD_FIXED,
 } Wireless_Network_IPv4_Method;
 
 typedef enum
@@ -53,6 +54,13 @@ typedef enum
    WIRELESS_NETWORK_IPV6_PRIVACY_ENABLED,
    WIRELESS_NETWORK_IPV6_PRIVACY_PREFERRED,
 } Wireless_Network_IPv6_Privacy;
+
+typedef enum
+{
+   WIRELESS_PROXY_TYPE_DIRECT,
+   WIRELESS_PROXY_TYPE_MANUAL,
+   WIRELESS_PROXY_TYPE_AUTO,
+} Wireless_Proxy_Type;
 
 typedef struct Wireless_Network Wireless_Network;
 
@@ -88,6 +96,10 @@ typedef struct Wireless_Connection
          Wireless_Network_IPv6_Privacy privacy;
       } v6;
    } ip;
+   Wireless_Proxy_Type proxy_type;
+   Eina_Stringshare *proxy_url;
+   Eina_Array *proxy_servers;
+   Eina_Array *proxy_excludes;
    Eina_Bool ipv6 : 1;
 } Wireless_Connection;
 
@@ -102,4 +114,5 @@ EINTERN Eina_Array *wireless_wifi_networks_set(Eina_Array *networks);
 EINTERN void wireless_airplane_mode_set(Eina_Bool enabled);
 EINTERN void wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data);
 EINTERN void wireless_authenticate_cancel(void);
+EINTERN void wireless_authenticate_external(Wireless_Network *wn, const char *url);
 #endif

@@ -8,6 +8,21 @@ static const char *wireless_theme_groups[] =
   [WIRELESS_SERVICE_TYPE_CELLULAR] = "e/modules/wireless/cellular",
 };
 
+static const char *wireless_ipv4_methods[] =
+{
+   "Disabled",
+   "Manual",
+   "DHCP",
+   "Fixed",
+};
+
+static const char *wireless_proxy_methods[] =
+{
+   "Direct",
+   "Manual",
+   "Auto",
+};
+
 typedef struct Instance
 {
    Z_Gadget_Site_Orient orient;
@@ -47,6 +62,12 @@ static Eina_List *instances;
 static Eina_List *wireless_auth_pending;
 static Wireless_Auth_Popup *wireless_auth_popup;
 
+static Eina_List *wireless_edit_proxy_entries;
+static Eina_List *wireless_edit_entries;
+static Evas_Object *wireless_edit_popup;
+static Wireless_Connection *wireless_edit[2];
+
+static Eina_Bool auth_popup;
 
 #undef DBG
 #undef INF
@@ -181,6 +202,354 @@ _wireless_popup_key(void *d EINA_UNUSED, Ecore_Event_Key *ev)
 }
 
 static void
+_wireless_edit_entries_update(void)
+{
+   Eina_List *l;
+   Evas_Object *ent;
+
+   if (wireless_edit[1]->ipv6){}//FIXME
+   else
+     {
+        switch (wireless_edit[1]->method)
+          {
+           case WIRELESS_NETWORK_IPV4_METHOD_MANUAL:
+             EINA_LIST_FOREACH(wireless_edit_entries, l, ent)
+               elm_object_disabled_set(ent, 0);
+             break;
+           case WIRELESS_NETWORK_IPV4_METHOD_OFF:
+           case WIRELESS_NETWORK_IPV4_METHOD_DHCP:
+           case WIRELESS_NETWORK_IPV4_METHOD_FIXED:
+             EINA_LIST_FOREACH(wireless_edit_entries, l, ent)
+               elm_object_disabled_set(ent, 1);
+             break;
+          }
+     }
+}
+
+static void
+_wireless_edit_proxy_entries_update(void)
+{
+   Eina_List *l;
+   Evas_Object *ent;
+
+   switch (wireless_edit[1]->proxy_type)
+     {
+      case WIRELESS_PROXY_TYPE_MANUAL:
+      case WIRELESS_PROXY_TYPE_AUTO:
+        EINA_LIST_FOREACH(wireless_edit_proxy_entries, l, ent)
+          elm_object_disabled_set(ent, 0);
+        break;
+      case WIRELESS_PROXY_TYPE_DIRECT:
+        EINA_LIST_FOREACH(wireless_edit_proxy_entries, l, ent)
+          elm_object_disabled_set(ent, 1);
+        break;
+     }
+}
+
+static void
+_wireless_gadget_edit_proxy_method(void *data EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   wireless_edit[1]->proxy_type = (intptr_t)elm_object_item_data_get(event_info);
+   _wireless_edit_proxy_entries_update();
+}
+
+static void
+_wireless_gadget_edit_method(void *data EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   wireless_edit[1]->method = (intptr_t)elm_object_item_data_get(event_info);
+   _wireless_edit_entries_update();
+}
+
+/* FIXME combine with other row fn */
+static Evas_Object *
+_wireless_edit_table_entry_row(Evas_Object *tb, const char *name, Evas_Smart_Cb cb, void *data, int *row)
+{
+   Evas_Object *fr, *entry;
+
+   fr = elm_frame_add(tb);
+   evas_object_show(fr);
+   E_EXPAND(fr);
+   E_FILL(fr);
+   elm_object_text_set(fr, name);
+   elm_table_pack(tb, fr, 0, *row, 2, 2);
+   *row += 2;
+
+   entry = elm_entry_add(tb);
+   evas_object_show(entry);
+   elm_entry_single_line_set(entry, 1);
+   evas_object_data_set(entry, "table", tb);
+   evas_object_smart_callback_add(entry, "activated", cb, data);
+   elm_object_content_set(fr, entry);
+   return entry;
+}
+
+static void
+_wireless_edit_entry_changed(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Eina_Stringshare **str = data;
+
+   eina_stringshare_replace(str, elm_entry_entry_get(obj));
+}
+
+static void
+_wireless_edit_del(void *data EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   int i;
+
+   wireless_edit_entries = eina_list_free(wireless_edit_entries);
+   wireless_edit_proxy_entries = eina_list_free(wireless_edit_proxy_entries);
+   eina_stringshare_del(wireless_edit[0]->wn->path);
+   free(wireless_edit[0]->wn);
+   for (i = 0; i <= 1; i++)
+     {
+        eina_stringshare_del(wireless_edit[i]->address);
+        eina_stringshare_del(wireless_edit[i]->gateway);
+        if (wireless_edit[i]->ipv6)
+          eina_stringshare_del(wireless_edit[i]->ip.v6.prefixlength);
+        else
+          eina_stringshare_del(wireless_edit[i]->ip.v4.netmask);
+        eina_stringshare_del(wireless_edit[i]->proxy_url);
+        if (wireless_edit[i]->proxy_excludes)
+          while (eina_array_count(wireless_edit[i]->proxy_excludes))
+            eina_stringshare_del(eina_array_pop(wireless_edit[i]->proxy_excludes));
+        eina_array_free(wireless_edit[i]->proxy_excludes);
+        if (wireless_edit[i]->proxy_servers)
+          while (eina_array_count(wireless_edit[i]->proxy_servers))
+            eina_stringshare_del(eina_array_pop(wireless_edit[i]->proxy_servers));
+        eina_array_free(wireless_edit[i]->proxy_servers);
+        E_FREE(wireless_edit[i]);
+     }
+   wireless_edit_popup = NULL;
+}
+
+static void
+_wireless_edit_send()
+{
+   EINTERN void connman_service_edit(const char *path, Wireless_Connection *wc);
+   connman_service_edit(wireless_edit[1]->wn->path, wireless_edit[1]);
+}
+
+static Eina_Bool
+_wireless_edit_key(void *d EINA_UNUSED, Ecore_Event_Key *ev)
+{
+   if ((!strcmp(ev->key, "Return")) || (!strcmp(ev->key, "KP_Enter")))
+     {
+        _wireless_edit_send();
+        return EINA_FALSE;
+     }
+   return strcmp(ev->key, "Escape");
+}
+
+static Evas_Object *
+_wireless_edit_method(Evas_Object *popup, Evas_Object *box, Wireless_Connection *wc)
+{
+   Evas_Object *tb, *fr, *hoversel, *entry, *ent;
+   int i, row = 0;
+
+   tb = elm_table_add(popup);
+   E_FILL(tb);
+   evas_object_show(tb);
+   elm_box_pack_end(box, tb);
+
+   fr = elm_frame_add(tb);
+   E_EXPAND(fr);
+   E_FILL(fr);
+   evas_object_show(fr);
+   elm_object_text_set(fr, "Method");
+   elm_table_pack(tb, fr, 0, row++, 2, 1);
+
+   hoversel = elm_hoversel_add(tb);
+   elm_hoversel_hover_parent_set(hoversel, popup);
+   elm_hoversel_auto_update_set(hoversel, 1);
+   evas_object_show(hoversel);
+   elm_object_content_set(fr, hoversel);
+   evas_object_smart_callback_add(hoversel, "selected", _wireless_gadget_edit_method, NULL);
+   if (wc->ipv6){}//FIXME
+   else
+     {
+        elm_object_text_set(hoversel, wireless_ipv4_methods[wc->method]);
+        for (i = 0; i <= WIRELESS_NETWORK_IPV4_METHOD_FIXED; i++)
+          {
+             if ((int)wc->method != i)
+               elm_hoversel_item_add(hoversel, wireless_ipv4_methods[i], NULL, ELM_ICON_NONE, NULL, (intptr_t*)(long)i);
+          }
+     }
+   
+   ent = entry = _wireless_edit_table_entry_row(tb, "Address", NULL, NULL, &row);
+   wireless_edit_entries = eina_list_append(wireless_edit_entries, ent);
+   elm_entry_entry_set(ent, wc->address);
+   evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->address);
+   if (wc->ipv6)
+     {
+        ent = _wireless_edit_table_entry_row(tb, "PrefixLength", NULL, NULL, &row);
+        elm_entry_entry_set(ent, wc->ip.v6.prefixlength);
+        evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->ip.v6.prefixlength);
+     }
+   else
+     {
+        ent = _wireless_edit_table_entry_row(tb, "Netmask", NULL, NULL, &row);
+        elm_entry_entry_set(ent, wc->ip.v4.netmask);
+        evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->ip.v4.netmask);
+     }
+   wireless_edit_entries = eina_list_append(wireless_edit_entries, ent);
+   ent = _wireless_edit_table_entry_row(tb, "Gateway", NULL, NULL, &row);
+   elm_entry_entry_set(ent, wc->gateway);
+   evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->gateway);
+   wireless_edit_entries = eina_list_append(wireless_edit_entries, ent);
+   _wireless_edit_entries_update();
+   return entry;
+}
+static void
+_wireless_edit_proxy(Evas_Object *popup, Evas_Object *box, Wireless_Connection *wc)
+{
+   Evas_Object *tb, *fr, *hoversel, *ent;
+   int i, row = 0;
+
+   tb = elm_table_add(popup);
+   E_FILL(tb);
+   evas_object_show(tb);
+   elm_box_pack_end(box, tb);
+
+   fr = elm_frame_add(tb);
+   E_EXPAND(fr);
+   E_FILL(fr);
+   evas_object_show(fr);
+   elm_object_text_set(fr, "Proxy Type");
+   elm_table_pack(tb, fr, 0, row++, 2, 1);
+
+   hoversel = elm_hoversel_add(tb);
+   elm_hoversel_hover_parent_set(hoversel, popup);
+   elm_hoversel_auto_update_set(hoversel, 1);
+   evas_object_show(hoversel);
+   elm_object_content_set(fr, hoversel);
+   evas_object_smart_callback_add(hoversel, "selected", _wireless_gadget_edit_proxy_method, NULL);
+   if (wc->ipv6){}//FIXME
+   else
+     {
+        elm_object_text_set(hoversel, wireless_proxy_methods[wc->proxy_type]);
+        for (i = 0; i <= WIRELESS_PROXY_TYPE_AUTO; i++)
+          {
+             if ((int)wc->proxy_type != i)
+               elm_hoversel_item_add(hoversel, wireless_proxy_methods[i], NULL, ELM_ICON_NONE, NULL, (intptr_t*)(long)i);
+          }
+     }
+   
+   ent = _wireless_edit_table_entry_row(tb, "Proxy Address", NULL, NULL, &row);
+   wireless_edit_proxy_entries = eina_list_append(wireless_edit_proxy_entries, ent);
+   elm_entry_entry_set(ent, wc->proxy_url);
+   evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->address);
+   if (wc->ipv6)
+     {
+        ent = _wireless_edit_table_entry_row(tb, "PrefixLength", NULL, NULL, &row);
+        elm_entry_entry_set(ent, wc->ip.v6.prefixlength);
+        evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->ip.v6.prefixlength);
+     }
+   else
+     {
+        ent = _wireless_edit_table_entry_row(tb, "Netmask", NULL, NULL, &row);
+        elm_entry_entry_set(ent, wc->ip.v4.netmask);
+        evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->ip.v4.netmask);
+     }
+   wireless_edit_proxy_entries = eina_list_append(wireless_edit_proxy_entries, ent);
+   ent = _wireless_edit_table_entry_row(tb, "Gateway", NULL, NULL, &row);
+   elm_entry_entry_set(ent, wc->gateway);
+   evas_object_smart_callback_add(ent, "changed,user", _wireless_edit_entry_changed, &wireless_edit[1]->gateway);
+   wireless_edit_proxy_entries = eina_list_append(wireless_edit_proxy_entries, ent);
+   _wireless_edit_proxy_entries_update();
+}
+
+static void
+_wireless_gadget_edit(Instance *inst, int type)
+{
+   Evas_Object *popup, *lbl, *entry, *bt, *box;
+   int i;
+   char buf[1024] = {0};
+   Wireless_Connection *wc = wireless_current[type];
+   Wireless_Network *wn;
+
+   if (!wc) return;//FIXME: possible?
+   wireless_edit[0] = E_NEW(Wireless_Connection, 1);
+   wireless_edit[1] = E_NEW(Wireless_Connection, 1);
+   wn = E_NEW(Wireless_Network, 1);
+   wn->path = eina_stringshare_ref(wc->wn->path);
+   for (i = 0; i <= 1; i++)
+     {
+        Eina_Array *arrays[] =
+          { wc->proxy_servers, wc->proxy_excludes, NULL };
+        Eina_Array **arrays2[] =
+          { &wireless_edit[i]->proxy_servers, &wireless_edit[i]->proxy_excludes, NULL };
+        unsigned int ii;
+
+        wireless_edit[i]->wn = wn;
+        wireless_edit[i]->method = wc->method;
+        wireless_edit[i]->address = eina_stringshare_ref(wc->address);
+        wireless_edit[i]->gateway = eina_stringshare_ref(wc->gateway);
+        wireless_edit[i]->ipv6 = wc->ipv6;
+        if (wc->ipv6)
+          {
+             wireless_edit[i]->ip.v6.prefixlength = eina_stringshare_ref(wc->ip.v6.prefixlength);
+             wireless_edit[i]->ip.v6.privacy = wc->ip.v6.privacy;
+          }
+        else
+          wireless_edit[i]->ip.v4.netmask = eina_stringshare_ref(wc->ip.v4.netmask);
+        wireless_edit[i]->proxy_type = wc->proxy_type;
+        wireless_edit[i]->proxy_url = eina_stringshare_ref(wc->proxy_url);
+        /* fuuuuck thiiiiiiis */
+        for (ii = 0; ii < EINA_C_ARRAY_LENGTH(arrays); ii++)
+          {
+             unsigned int iii;
+             Eina_Stringshare *str;
+             Eina_Array_Iterator itr;
+
+             if (!arrays[ii]) continue;
+             *arrays2[ii] = eina_array_new(eina_array_count(arrays[ii]));
+             EINA_ARRAY_ITER_NEXT(arrays[ii], iii, str, itr)
+               eina_array_push(*arrays2[ii], eina_stringshare_ref(str));
+          }
+     }
+
+   popup = elm_popup_add(e_comp->elm);
+   evas_object_layer_set(popup, E_LAYER_MENU);
+   elm_popup_allow_events_set(popup, 1);
+   elm_popup_scrollable_set(popup, 1);
+
+   box = elm_box_add(popup);
+   E_EXPAND(box);
+   E_FILL(box);
+   evas_object_show(box);
+   elm_object_content_set(popup, box);
+
+   lbl = elm_label_add(popup);
+   elm_object_style_set(lbl, "marker");
+   evas_object_show(lbl);
+   if (type == WIRELESS_SERVICE_TYPE_ETHERNET)
+     strncpy(buf, "Edit Connection Details: Ethernet", sizeof(buf) - 1);
+   else
+     snprintf(buf, sizeof(buf), "Edit Connection Details: <hilight>%s</hilight>", wc->wn->name);
+   elm_object_text_set(lbl, buf);
+   elm_box_pack_end(box, lbl);
+
+   entry = _wireless_edit_method(popup, box, wc);
+   //_wireless_edit_proxy(popup, box, wc);
+
+   bt = elm_button_add(box);
+   E_EXPAND(bt);
+   E_FILL(bt);
+   evas_object_show(bt);
+   elm_object_text_set(bt, "Okay");
+   evas_object_smart_callback_add(bt, "clicked", _wireless_edit_send, NULL);
+   elm_box_pack_end(box, bt);
+
+   wireless_edit_popup = e_comp_object_util_add(popup, E_COMP_OBJECT_TYPE_NONE);
+   evas_object_resize(wireless_edit_popup, e_zone_current_get()->w / 3, e_zone_current_get()->h / 2);
+   e_comp_object_util_center(wireless_edit_popup);
+   evas_object_show(wireless_edit_popup);
+   e_comp_object_util_autoclose(wireless_edit_popup, NULL, _wireless_edit_key, NULL);
+   evas_object_event_callback_add(wireless_edit_popup, EVAS_CALLBACK_DEL, _wireless_edit_del, NULL);
+   elm_object_focus_set(entry, 1);
+}
+
+static void
 _wireless_gadget_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info)
 {
    Evas_Event_Mouse_Down *ev = event_info;
@@ -196,10 +565,12 @@ _wireless_gadget_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, v
       "Cellular",
    };
 
-   if (ev->button != 1) return;
+   if (auth_popup) return;
    for (type = 0; type < WIRELESS_SERVICE_TYPE_LAST; type++)
      if (obj == inst->icon[type])
        break;
+   if (ev->button == 3) _wireless_gadget_edit(inst, type);
+   if (ev->button != 1) return;
    if (inst->popup.popup)
      {
         evas_object_hide(inst->popup.popup);
@@ -236,9 +607,9 @@ _wireless_gadget_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, v
    elm_box_pack_end(box, toggle);
    elm_object_content_set(ctx, box);
    z_gadget_util_ctxpopup_place(inst->box, ctx);
-   evas_object_smart_callback_call(inst->box, "gadget_popup", ctx);
    inst->popup.popup = e_comp_object_util_add(ctx, E_COMP_OBJECT_TYPE_NONE);
-   evas_object_layer_set(inst->popup.popup, E_LAYER_MENU);
+   evas_object_smart_callback_call(inst->box, "gadget_popup", inst->popup.popup);
+   evas_object_layer_set(inst->popup.popup, E_LAYER_POPUP);
    e_comp_object_util_autoclose(inst->popup.popup, NULL, _wireless_popup_key, NULL);
 
    zone = e_zone_current_get();
@@ -585,11 +956,11 @@ _wireless_auth_send(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
         if (!arr) arr = eina_array_new(2);
         txt = elm_object_text_get(o);
         eina_array_push(arr, txt);
-        o = elm_table_child_get(tb, 1, row);
+        o = elm_object_content_get(o);
         /* skip checkboxes */
         if (!strncmp(txt, "Pass", 4)) row++;
         eina_array_push(arr, elm_object_text_get(o));
-        row++;
+        row += 2;
      } while (1);
    p->cb(p->data, arr);
    p->sent = 1;
@@ -599,23 +970,23 @@ _wireless_auth_send(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 static Evas_Object *
 _wireless_auth_table_row(Evas_Object *tb, const char *name, Wireless_Auth_Popup *p, int *row)
 {
-   Evas_Object *lbl, *entry, *ck;
+   Evas_Object *fr, *entry, *ck;
    char buf[1024];
 
-   lbl = elm_label_add(tb);
-   evas_object_show(lbl);
-   E_ALIGN(lbl, 0, -1);
-   elm_object_text_set(lbl, name);
-   elm_table_pack(tb, lbl, 0, *row, 1, 1);
+   fr = elm_frame_add(tb);
+   evas_object_show(fr);
+   E_EXPAND(fr);
+   E_FILL(fr);
+   elm_object_text_set(fr, name);
+   elm_table_pack(tb, fr, 0, *row, 2, 2);
+   *row += 2;
 
    entry = elm_entry_add(tb);
    evas_object_show(entry);
-   E_ALIGN(entry, -1, -1);
-   E_EXPAND(entry);
    elm_entry_single_line_set(entry, 1);
    evas_object_data_set(entry, "table", tb);
    evas_object_smart_callback_add(entry, "activated", _wireless_auth_send, p);
-   elm_table_pack(tb, entry, 1, *row, 1, 1);
+   elm_object_content_set(fr, entry);
    if (strncmp(name, "Pass", 4)) return NULL;
    elm_entry_password_set(entry, 1);
 
@@ -624,7 +995,7 @@ _wireless_auth_table_row(Evas_Object *tb, const char *name, Wireless_Auth_Popup 
    E_ALIGN(ck, 0, -1);
    snprintf(buf, sizeof(buf), "Show %s", name);
    elm_object_text_set(ck, buf);
-   elm_table_pack(tb, ck, 0, ++(*row), 2, 1);
+   elm_table_pack(tb, ck, 0, (*row)++, 2, 1);
    return entry;
 }
 
@@ -669,7 +1040,6 @@ wireless_authenticate(const Eina_Array *fields, Wireless_Auth_Cb cb, void *data)
 
         o = _wireless_auth_table_row(tb, f, p, &row);
         if (!entry) entry = o;
-        row++;
      }
    popup = e_comp_object_util_add(popup, E_COMP_OBJECT_TYPE_NONE);
    p->popup = popup;
@@ -693,4 +1063,57 @@ wireless_authenticate_cancel(void)
    if (!wireless_auth_popup) return;
    evas_object_hide(wireless_auth_popup->popup);
    evas_object_del(wireless_auth_popup->popup);
+}
+
+static void
+_wireless_auth_external_deny(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   /* FIXME */
+   free(data);
+   auth_popup = 0;
+}
+
+static void
+_wireless_auth_external_allow(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   char *sb, *uri = data;
+   const char *bindir;
+   size_t size = PATH_MAX, len;
+
+   bindir = e_prefix_bin_get();
+   len = strlen(bindir);
+   sb = malloc(size);
+   snprintf(sb, size, "%s/enlightenment_open", bindir);
+   sb = e_util_string_append_quoted(sb, &size, &len, uri);
+   DBG("launched command: %s", sb);
+   ecore_exe_run(sb, NULL);
+   free(sb);
+   free(uri);
+   auth_popup = 0;
+}
+
+EINTERN void
+wireless_authenticate_external(Wireless_Network *wn, const char *url)
+{
+   char buf[1024];
+   Eina_List *l;
+   Instance *inst;
+
+   EINA_LIST_FOREACH(instances, l, inst)
+     if (inst->popup.popup)
+       {
+          evas_object_hide(inst->popup.popup);
+          evas_object_del(inst->popup.popup);
+       }
+   if (wn->type == WIRELESS_SERVICE_TYPE_ETHERNET)
+     snprintf(buf, sizeof(buf), "Ethernet connection wants to open a url:<br>%s", url);
+   else
+     snprintf(buf, sizeof(buf), "Network '%s' wants to open a url:<br>%s", wn->name, url);
+   EINA_LIST_FOREACH(instances, l, inst)
+     {
+        if (!inst->icon[wn->type]) continue;
+        z_gadget_util_allow_deny_ctxpopup(inst->box, buf, _wireless_auth_external_allow, _wireless_auth_external_deny, strdup(url));
+        auth_popup = 1;
+        break;
+     }
 }
