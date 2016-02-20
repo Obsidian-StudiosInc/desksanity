@@ -72,9 +72,7 @@ _editor_bryce_add(Evas_Object *obj)
    b = z_bryce_add(e_comp->elm, buf, bi->orient, bi->anchor);
    site = z_bryce_site_get(b);
 
-   z_gadget_site_gadget_add(site, "Start", 0);
-   z_gadget_site_gadget_add(site, "Clock", 0);
-   z_gadget_site_gadget_add(site, "IBar", 0);
+   z_gadget_site_gadget_add(site, "Wireless", 0);
    z_gadget_site_gravity_set(site, gravity);
    z_bryce_style_set(b, bi->style);
    z_bryce_autohide_set(b, bi->autohide);

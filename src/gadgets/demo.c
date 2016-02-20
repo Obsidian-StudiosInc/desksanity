@@ -140,7 +140,7 @@ _gadget_menu(void *d EINA_UNUSED, E_Menu *m)
    E_Menu_Item *mi;
 
    mi = e_menu_item_new(m);
-   e_menu_item_label_set(mi, _("Gadgets 2.0"));
+   e_menu_item_label_set(mi, _("Lockscreen Gadgets"));
    e_util_menu_item_theme_icon_set(mi, "preferences-desktop-wallpaper");
    e_menu_item_callback_set(mi, _gadget_conf, NULL);
 
@@ -155,15 +155,47 @@ gadget_demo(void)
 {
    Evas_Object *b, *site;
 
-   if (!eina_streq(getenv("USER"), "zmike")) return;
+   if (!eina_streq(getenv("USER"), "cedric")) return;
 
-   if (e_comp->w > 1200) return;
    z_gadget_type_add("Start", start_create);
    clock_init();
    ibar_init();
    wireless_init();
    z_gadget_init();
    z_bryce_init();
+
+   if (!e_config->null_container_win)
+     {
+        Eina_List *l;
+        E_Config_Binding_Mouse *ebm;
+
+        e_module_disable(e_module_find("connman"));
+        EINA_LIST_FOREACH(e_bindings->mouse_bindings, l, ebm)
+          {
+             if (eina_streq(ebm->action, "window_move"))
+               {
+                  e_bindings_mouse_add(E_BINDING_CONTEXT_ANY, ebm->button, ebm->modifiers,
+                                       ebm->any_mod, "gadget_move", NULL);
+               }
+             else if (eina_streq(ebm->action, "window_resize"))
+               {
+                  e_bindings_mouse_add(E_BINDING_CONTEXT_ANY, ebm->button, ebm->modifiers,
+                                       ebm->any_mod, "gadget_resize", NULL);
+               }
+             else if (eina_streq(ebm->action, "window_menu"))
+               {
+                  e_bindings_mouse_add(E_BINDING_CONTEXT_ANY, ebm->button, ebm->modifiers,
+                                       ebm->any_mod, "gadget_menu", NULL);
+                  e_bindings_mouse_add(E_BINDING_CONTEXT_ANY, ebm->button, ebm->modifiers,
+                                       ebm->any_mod, "bryce_menu", NULL);
+               }
+          }
+        e_bindings_wheel_add(E_BINDING_CONTEXT_ANY, 0, 1, E_BINDING_MODIFIER_CTRL, 0, "bryce_resize", NULL);
+        e_bindings_wheel_add(E_BINDING_CONTEXT_ANY, 0, -1, E_BINDING_MODIFIER_CTRL, 0, "bryce_resize", NULL);
+        e_config->null_container_win = 1;
+        ecore_job_add(_bryce_conf, NULL);
+        e_config_save_queue();
+     }
 
    //b = z_bryce_add(e_comp->elm, "demo");
    //site = z_bryce_site_get(b);

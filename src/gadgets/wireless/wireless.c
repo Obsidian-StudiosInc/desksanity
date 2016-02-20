@@ -536,7 +536,7 @@ _wireless_gadget_edit(Instance *inst, int type)
    E_EXPAND(bt);
    E_FILL(bt);
    evas_object_show(bt);
-   elm_object_text_set(bt, "Okay");
+   elm_object_text_set(bt, "Deal with it");
    evas_object_smart_callback_add(bt, "clicked", _wireless_edit_send, NULL);
    elm_box_pack_end(box, bt);
 
