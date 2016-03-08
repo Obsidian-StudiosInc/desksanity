@@ -32,7 +32,7 @@ _ds_menu_ruler(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
      mr_init();
    e_config_save_queue();
 }
-
+#if E_VERSION_MAJOR == 20
 static void
 _ds_menu_maximize(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
 {
@@ -43,6 +43,7 @@ _ds_menu_maximize(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi
      maximize_init();
    e_config_save_queue();
 }
+#endif
 
 static void
 _ds_menu_transitions(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi)
@@ -90,13 +91,13 @@ _ds_menu_add(void *data EINA_UNUSED, E_Menu *m)
    e_menu_item_check_set(mi, 1);
    e_menu_item_toggle_set(mi, ds_config->disable_ruler);
    e_menu_item_callback_set(mi, _ds_menu_ruler, NULL);
-
+#if E_VERSION_MAJOR == 20
    mi = e_menu_item_new(subm);
    e_menu_item_label_set(mi, D_("Disable Maximize Effects"));
    e_menu_item_check_set(mi, 1);
    e_menu_item_toggle_set(mi, ds_config->disable_maximize);
    e_menu_item_callback_set(mi, _ds_menu_maximize, NULL);
-
+#endif
    mi = e_menu_item_new(subm);
    e_menu_item_label_set(mi, D_("Disable Transition Effects"));
    e_menu_item_check_set(mi, 1);

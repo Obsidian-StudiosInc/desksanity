@@ -1,4 +1,5 @@
 #include "e_mod_main.h"
+#if E_VERSION_MAJOR == 20
 
 static Ecore_Event_Handler *eh = NULL;
 
@@ -144,3 +145,4 @@ maximize_shutdown(void)
      }
    E_FREE_FUNC(eh, ecore_event_handler_del);
 }
+#endif

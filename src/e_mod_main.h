@@ -91,10 +91,10 @@ EINTERN void ds_shutdown(void);
 
 EINTERN void mr_shutdown(void);
 EINTERN void mr_init(void);
-
+#if E_VERSION_MAJOR == 20
 EINTERN void maximize_init(void);
 EINTERN void maximize_shutdown(void);
-
+#endif
 EINTERN void pip_init(void);
 EINTERN void pip_shutdown(void);
 

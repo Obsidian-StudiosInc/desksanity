@@ -253,8 +253,10 @@ e_modapi_init(E_Module *m)
      ds_init();
    if (!ds_config->disable_ruler)
      mr_init();
+#if E_VERSION_MAJOR == 20
    if (!ds_config->disable_maximize)
      maximize_init();
+#endif
 
    pip_init();
    zoom_init();
@@ -277,8 +279,10 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    mag_shutdown();
    zoom_shutdown();
    pip_shutdown();
+#if E_VERSION_MAJOR == 20
    if (!ds_config->disable_maximize)
      maximize_shutdown();
+#endif
    if (!ds_config->disable_ruler)
      mr_shutdown();
    if (!ds_config->disable_transitions)
