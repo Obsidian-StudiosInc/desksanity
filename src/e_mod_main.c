@@ -1,6 +1,6 @@
 #include "e_mod_main.h"
 
-EAPI E_Module_Api e_modapi = {E_MODULE_API_VERSION, "Desksanity"};
+E_API E_Module_Api e_modapi = {E_MODULE_API_VERSION, "Desksanity"};
 static E_Config_DD *conf_edd = NULL;
 
 EINTERN Mod *mod = NULL;
@@ -230,7 +230,7 @@ ds_client_urgent(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client_Property
    return ECORE_CALLBACK_RENEW;
 }
 
-EAPI void *
+E_API void *
 e_modapi_init(E_Module *m)
 {
    char buf[PATH_MAX];
@@ -273,7 +273,7 @@ e_modapi_init(E_Module *m)
    return m;
 }
 
-EAPI int
+E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
    mag_shutdown();
@@ -304,7 +304,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    return 1;
 }
 
-EAPI int
+E_API int
 e_modapi_save(E_Module *m EINA_UNUSED)
 {
    e_config_domain_save("module.desksanity", conf_edd, ds_config);
