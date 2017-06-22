@@ -261,7 +261,9 @@ e_modapi_init(E_Module *m)
    pip_init();
    zoom_init();
    mag_init();
-
+#ifdef HAVE_RUNNER
+   runner_init();
+#endif
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_PROPERTY, ds_client_urgent, NULL);
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_CLIENT_REMOVE, ds_client_remove, NULL);
    E_LIST_HANDLER_APPEND(handlers, E_EVENT_DESK_AFTER_SHOW, ds_desk_after_show, NULL);
@@ -276,6 +278,9 @@ e_modapi_init(E_Module *m)
 E_API int
 e_modapi_shutdown(E_Module *m EINA_UNUSED)
 {
+#ifdef HAVE_RUNNER
+   runner_shutdown();
+#endif
    mag_shutdown();
    zoom_shutdown();
    pip_shutdown();
@@ -308,6 +313,9 @@ E_API int
 e_modapi_save(E_Module *m EINA_UNUSED)
 {
    e_config_domain_save("module.desksanity", conf_edd, ds_config);
+#ifdef HAVE_RUNNER
+   runner_save();
+#endif
    return 1;
 }
 

@@ -19,6 +19,10 @@ src/zoom.c \
 src/magnify.c \
 src/desksanity.c
 
+if BUILD_RUNNER
+module_la_SOURCES += src/runner.c
+endif
+
 module_la_LIBADD = @E_LIBS@
 module_la_LDFLAGS = -module -avoid-version
 module_la_DEPENDENCIES = $(top_builddir)/config.h

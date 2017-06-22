@@ -30,7 +30,15 @@ AC_PROG_LIBTOOL
 #])
 #AC_SUBST(LTLIBINTL)
 
-PKG_CHECK_MODULES([E], [enlightenment >= 0.21.0])
+PKG_CHECK_EXISTS([efl-wl], [build_runner="yes"], [build_runner="no"])
+
+if test "x$build_runner" = "xyes" ; then
+  runner="efl-wl"
+  AC_DEFINE_UNQUOTED(HAVE_RUNNER, 1, "have runner deps")
+fi
+AM_CONDITIONAL([BUILD_RUNNER], [test "x${build_runner}" = "xyes"])
+
+PKG_CHECK_MODULES([E], [enlightenment >= 0.21.0 $runner])
 release=$(pkg-config --variable=release enlightenment)
 MODULE_ARCH="$host_os-$host_cpu-$release"
 AC_SUBST(MODULE_ARCH)
