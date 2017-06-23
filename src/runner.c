@@ -161,14 +161,19 @@ config_runner(Config_Item *ci, E_Zone *zone)
    elm_radio_state_value_set(o, EXIT_MODE_DELETE);
    elm_table_pack(tb, o, 1, row++, 1, 1);
 
+
+   /* FIXME */
+ci->allow_events = 1;
    _config_label_add(tb, D_("Allow events"), row);
    o = elm_check_add(tb);
+elm_object_disabled_set(o, 1);
    E_FILL(o);
    evas_object_show(o);
    elm_object_style_set(o, "toggle");
    elm_object_part_text_set(o, "on", D_("Yes"));
    elm_object_part_text_set(o, "off", D_("No"));
    elm_check_state_pointer_set(o, &ci->allow_events);
+   elm_object_disabled_set(o, 1);
    evas_object_smart_callback_add(o, "changed", _config_events_changed, ci);
    evas_object_data_set(o, "table", tb);
    elm_table_pack(tb, o, 1, row++, 1, 1);
