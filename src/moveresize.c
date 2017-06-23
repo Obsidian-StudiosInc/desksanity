@@ -221,6 +221,7 @@ text_add(Evas *e)
    Evas_Object *o;
 
    o = edje_object_add(e);
+   evas_object_pass_events_set(o, 1);
    evas_object_layer_set(o, E_LAYER_MENU + 2);
    edje_object_file_set(o, mod->edje_file, "e/modules/desksanity/moveresize");
    evas_object_show(o);

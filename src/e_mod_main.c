@@ -321,6 +321,7 @@ ds_fade_setup(Evas_Object_Event_Cb click_cb)
    evas_object_name_set(fade_obj, "fade_obj");
    evas_object_geometry_set(fade_obj, 0, 0, e_comp->w, e_comp->h);
    evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
+   evas_object_pass_events_set(fade_obj, 1);
    evas_object_show(fade_obj);
    efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
    efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
