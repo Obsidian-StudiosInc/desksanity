@@ -57,7 +57,7 @@ move_x_update(E_Client *ec)
    if (evas_object_clip_get(mr_line_x) != zone->bg_clip_object)
      {
         evas_object_clip_set(mr_line_x, zone->bg_clip_object);
-        efx_reclip(mr_line_x);
+        e_efx_reclip(mr_line_x);
      }
    evas_object_geometry_set(mr_line_x, ec->x, zone->y, 1, zone->h);
 
@@ -83,7 +83,7 @@ move_y_update(E_Client *ec)
    if (evas_object_clip_get(mr_line_y) != zone->bg_clip_object)
      {
         evas_object_clip_set(mr_line_y, zone->bg_clip_object);
-        efx_reclip(mr_line_y);
+        e_efx_reclip(mr_line_y);
      }
    evas_object_geometry_set(mr_line_y, zone->x, ec->y, zone->w, 1);
 
@@ -241,11 +241,11 @@ line_add(Evas *e)
 }
 
 static void
-pulse(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
+pulse(void *d EINA_UNUSED, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 {
-   efx_queue_append(obj, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_QUEUED_EFFECT(EFX_EFFECT_FADE(255, 255, 255, 255)), 0.6, NULL, NULL);
-   efx_queue_append(obj, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_QUEUED_EFFECT(EFX_EFFECT_FADE(120, 120, 120, 120)), 0.9, pulse, NULL);
-   efx_queue_run(obj);
+   e_efx_queue_append(obj, E_EFX_EFFECT_SPEED_SINUSOIDAL, E_EFX_QUEUED_EFFECT(E_EFX_EFFECT_FADE(255, 255, 255, 255)), 0.6, NULL, NULL);
+   e_efx_queue_append(obj, E_EFX_EFFECT_SPEED_SINUSOIDAL, E_EFX_QUEUED_EFFECT(E_EFX_EFFECT_FADE(120, 120, 120, 120)), 0.9, pulse, NULL);
+   e_efx_queue_run(obj);
 }
 
 static void
@@ -290,14 +290,14 @@ move_update(void *d EINA_UNUSED, E_Client *ec)
 static void
 move_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
 {
-   efx_queue_clear(mr_line_x);
-   efx_queue_clear(mr_line_y);
-   efx_fade_reset(mr_line_x);
-   efx_fade_reset(mr_line_y);
-   efx_fade(mr_line_x, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-   efx_fade(mr_line_y, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-   efx_fade(move_text_x, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-   efx_fade(move_text_y, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+   e_efx_queue_clear(mr_line_x);
+   e_efx_queue_clear(mr_line_y);
+   e_efx_fade_reset(mr_line_x);
+   e_efx_fade_reset(mr_line_y);
+   e_efx_fade(mr_line_x, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+   e_efx_fade(mr_line_y, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+   e_efx_fade(move_text_x, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+   e_efx_fade(move_text_y, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    ds_fade_end(_fade_end, NULL);
 }
 
@@ -373,12 +373,12 @@ resize_end(void *d EINA_UNUSED, E_Client *ec EINA_UNUSED)
 {
    unsigned int x;
 
-   efx_fade(resize_text, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+   e_efx_fade(resize_text, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
    for (x = 0; x < 4; x++)
      {
         if (!resize_rect[x]) continue;
-        efx_fade(resize_rect[x], EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
-        efx_queue_clear(resize_rect[x]);
+        e_efx_fade(resize_rect[x], E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, NULL, NULL);
+        e_efx_queue_clear(resize_rect[x]);
      }
    ds_fade_end(_fade_end, NULL);
 }

@@ -30,7 +30,7 @@ static void
 _current_update(int n)
 {
    if (current_mag != -1)
-     efx_zoom_reset(magnifiers[current_mag]);
+     e_efx_zoom_reset(magnifiers[current_mag]);
    current_mag = n;
 }
 
@@ -47,7 +47,7 @@ _magnify_update(int x, int y)
    w = zone->w / MAG_SIZE_FACTOR;
    h = zone->h / MAG_SIZE_FACTOR;
    evas_object_geometry_set(clip, x - (w / 2), y - (h / 2), w, h);
-   efx_zoom(magnifiers[zone->num], EFX_EFFECT_SPEED_LINEAR, 0, 2.0, EFX_POINT(x, y), 0, NULL, NULL);
+   e_efx_zoom(magnifiers[zone->num], E_EFX_EFFECT_SPEED_LINEAR, 0, 2.0, E_EFX_POINT(x, y), 0, NULL, NULL);
 }
 
 static Eina_Bool

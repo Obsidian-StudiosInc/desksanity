@@ -203,9 +203,9 @@ _pip_mouse_wheel(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, 
    if (evas_key_modifier_is_set(ev->modifiers, "Control"))
      {
         if (ev->z < 0)
-          efx_zoom(pip->pip, EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom -= 0.05, EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
+          e_efx_zoom(pip->pip, E_EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom -= 0.05, E_EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
         else if (ev->z > 0)
-          efx_zoom(pip->pip, EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom += 0.05, EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
+          e_efx_zoom(pip->pip, E_EFX_EFFECT_SPEED_LINEAR, 0, pip->zoom += 0.05, E_EFX_POINT(ev->output.x, ev->output.y), 0.2, NULL, NULL);
      }
    else
      {
@@ -213,7 +213,7 @@ _pip_mouse_wheel(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, 
           pip->opacity = E_CLAMP(pip->opacity + 15, 0, 255);
         else if (ev->z > 0)
           pip->opacity = E_CLAMP(pip->opacity - 15, 0, 255);
-        efx_fade(pip->pip, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(pip->opacity, pip->opacity, pip->opacity), pip->opacity, 0.2, NULL, NULL);
+        e_efx_fade(pip->pip, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(pip->opacity, pip->opacity, pip->opacity), pip->opacity, 0.2, NULL, NULL);
      }
 }
 
@@ -345,9 +345,9 @@ _pip_manage(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_
 }
 
 static void
-_pip_fade_end(void *d EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
+_pip_fade_end(void *d EINA_UNUSED, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 {
-   ecore_job_add((Ecore_Cb)efx_fade_reset, obj);
+   ecore_job_add((Ecore_Cb)e_efx_fade_reset, obj);
 }
 
 static void
@@ -377,8 +377,8 @@ _pip_create(void *data, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
    evas_object_event_callback_add(o, EVAS_CALLBACK_MOUSE_WHEEL, _pip_mouse_wheel, pip);
    evas_object_event_callback_add(o, EVAS_CALLBACK_DEL, _pip_del, ec);
 
-   efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-   efx_fade(o, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.2, _pip_fade_end, NULL);
+   e_efx_fade(o, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
+   e_efx_fade(o, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(255, 255, 255), 255, 0.2, _pip_fade_end, NULL);
 
    eina_hash_add(pips, &ec->frame, pip);
    if (editing)

@@ -30,7 +30,7 @@ AC_PROG_LIBTOOL
 #])
 #AC_SUBST(LTLIBINTL)
 
-PKG_CHECK_MODULES([E], [efx enlightenment >= 0.20.0])
+PKG_CHECK_MODULES([E], [enlightenment >= 0.21.0])
 release=$(pkg-config --variable=release enlightenment)
 MODULE_ARCH="$host_os-$host_cpu-$release"
 AC_SUBST(MODULE_ARCH)

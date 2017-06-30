@@ -20,7 +20,7 @@ static Eina_Bool focus_last_focused_per_desktop;
 static unsigned int pending_flip;
 
 static void
-_ds_fade_end(Ecore_Cb cb, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
+_ds_fade_end(Ecore_Cb cb, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
    E_FREE_FUNC(fade_obj, evas_object_del);
    if (cb)
@@ -241,7 +241,7 @@ e_modapi_init(E_Module *m)
    snprintf(buf, sizeof(buf), "%s/e-module-desksanity.edj", m->dir);
    elm_theme_overlay_add(NULL, buf);
 
-   efx_init();
+   e_efx_init();
    _e_mod_ds_config_load();
 
    mod = E_NEW(Mod, 1);
@@ -300,7 +300,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    focus_list = eina_list_free(focus_list);
    E_FREE_FUNC(ds_key_focus_timeout, ecore_timer_del);
    E_FREE_LIST(ds_key_focus_desks, e_object_unref);
-   //efx_shutdown(); broken...
+   //e_efx_shutdown(); broken...
    return 1;
 }
 
@@ -323,15 +323,15 @@ ds_fade_setup(Evas_Object_Event_Cb click_cb)
    evas_object_layer_set(fade_obj, E_LAYER_MENU + 1);
    evas_object_pass_events_set(fade_obj, 1);
    evas_object_show(fade_obj);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
+   e_efx_fade(fade_obj, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
+   e_efx_fade(fade_obj, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(0, 0, 0), 192, 0.3, NULL, NULL);
 }
 
 EINTERN void
 ds_fade_end(Ecore_Cb end_cb, Evas_Object_Event_Cb click_cb)
 {
    evas_object_pass_events_set(fade_obj, 1);
-   efx_fade(fade_obj, EFX_EFFECT_SPEED_DECELERATE, EFX_COLOR(0, 0, 0), 0, 0.3, (Efx_End_Cb)_ds_fade_end, end_cb);
+   e_efx_fade(fade_obj, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, (E_Efx_End_Cb)_ds_fade_end, end_cb);
    if (click_cb)
      evas_object_event_callback_del(fade_obj, EVAS_CALLBACK_MOUSE_DOWN, click_cb);
 }

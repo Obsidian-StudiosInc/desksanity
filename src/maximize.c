@@ -29,7 +29,7 @@ _ds_unmaximize_post(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    if (!rect) return;
    evas_object_geometry_set(obj, rect->x, rect->y, rect->w, rect->h);
    free(rect);
-   efx_resize(ec->frame, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_POINT(x, y), w, h, time, NULL, NULL);
+   e_efx_resize(ec->frame, E_EFX_EFFECT_SPEED_SINUSOIDAL, E_EFX_POINT(x, y), w, h, time, NULL, NULL);
    ecore_timer_add(0.1, _ds_unmaximize_render, NULL);
 }
 
@@ -55,12 +55,12 @@ _ds_unmaximize_pre(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EI
 
    max = !!evas_object_data_del(ec->frame, "__DSMAX");
    if (max)
-     efx_resize_stop(ec->frame);
+     e_efx_resize_stop(ec->frame);
    ec->maximize_override = 0;
 }
 
 static void
-_ds_maximize_done(void *data, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
+_ds_maximize_done(void *data, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
    E_Client *ec = data;
 
@@ -86,7 +86,7 @@ _ds_maximize(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNU
    if ((!w) || (!h)) return; //new client, don't break the universe
    ec->maximize_override = 1;
    evas_object_geometry_set(ec->frame, x, y, w, h);
-   efx_resize(ec->frame, EFX_EFFECT_SPEED_SINUSOIDAL, EFX_POINT(ecx, ecy), ecw, ech, time, _ds_maximize_done, ec);
+   e_efx_resize(ec->frame, E_EFX_EFFECT_SPEED_SINUSOIDAL, E_EFX_POINT(ecx, ecy), ecw, ech, time, _ds_maximize_done, ec);
    evas_object_data_set(ec->frame, "__DSMAX", (void*)1);
 }
 
@@ -98,7 +98,7 @@ _ds_fullscreen(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_U
    evas_object_data_del(ec->frame, "__DSMAX");
    free(evas_object_data_del(ec->frame, "__DSUMAX"));
    ec->maximize_override = 0;
-   efx_resize_stop(ec->frame);
+   e_efx_resize_stop(ec->frame);
 }
 
 static void

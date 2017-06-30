@@ -8,7 +8,7 @@ static Evas_Object *dm_hide = NULL;
 static DS_Type cur_type = DS_PAN;
 
 static void
-_ds_end(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
+_ds_end(void *data EINA_UNUSED, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj EINA_UNUSED)
 {
    /* hide/delete previous desk's mirror */
    evas_object_hide(dm_hide);
@@ -48,12 +48,12 @@ dm_add(E_Desk *desk)
 }
 
 static void
-_ds_blink2(void *data EINA_UNUSED, Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
+_ds_blink2(void *data EINA_UNUSED, E_Efx_Map_Data *emd EINA_UNUSED, Evas_Object *obj)
 {
    E_FREE_FUNC(dm_hide, evas_object_del);
    evas_object_show(dm_show);
-   efx_resize(obj, EFX_EFFECT_SPEED_DECELERATE,
-     EFX_POINT(desk_show->zone->x, desk_show->zone->y),
+   e_efx_resize(obj, E_EFX_EFFECT_SPEED_DECELERATE,
+     E_EFX_POINT(desk_show->zone->x, desk_show->zone->y),
      desk_show->zone->w, desk_show->zone->h,
      0.45, _ds_end, NULL);
 }
@@ -153,30 +153,30 @@ _ds_show(E_Desk *desk, int dx, int dy)
           }
         dm_show = dm_add(desk);
         evas_object_move(dm_show, x, y);
-        efx_move(dm_hide, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(hx, hy), 0.2, NULL, NULL);
-        efx_move(dm_show, EFX_EFFECT_SPEED_DECELERATE, EFX_POINT(desk->zone->x, desk->zone->y), 0.2, _ds_end, NULL);
+        e_efx_move(dm_hide, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_POINT(hx, hy), 0.2, NULL, NULL);
+        e_efx_move(dm_show, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_POINT(desk->zone->x, desk->zone->y), 0.2, _ds_end, NULL);
         break;
       case DS_FADE_OUT:
-        efx_fade(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.25, _ds_end, NULL);
+        e_efx_fade(dm_hide, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(0, 0, 0), 0, 0.25, _ds_end, NULL);
         break;
       case DS_FADE_IN:
         E_FREE_FUNC(dm_hide, evas_object_del);
         dm_show = dm_add(desk);
-        efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
-        efx_fade(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_COLOR(255, 255, 255), 255, 0.25, _ds_end, NULL);
+        e_efx_fade(dm_show, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(0, 0, 0), 0, 0.0, NULL, NULL);
+        e_efx_fade(dm_show, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_COLOR(255, 255, 255), 255, 0.25, _ds_end, NULL);
         break;
       case DS_BATMAN:
         evas_object_raise(dm_hide);
-        efx_spin_start(dm_hide, 1080.0, NULL);
-        efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.00001, NULL, 0.4, _ds_end, NULL);
+        e_efx_spin_start(dm_hide, 1080.0, NULL);
+        e_efx_zoom(dm_hide, E_EFX_EFFECT_SPEED_LINEAR, 1.0, 0.00001, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_IN:
         dm_show = dm_add(desk);
-        efx_zoom(dm_show, EFX_EFFECT_SPEED_LINEAR, 0.000001, 1.0, NULL, 0.4, _ds_end, NULL);
+        e_efx_zoom(dm_show, E_EFX_EFFECT_SPEED_LINEAR, 0.000001, 1.0, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_ZOOM_OUT:
         evas_object_raise(dm_hide);
-        efx_zoom(dm_hide, EFX_EFFECT_SPEED_LINEAR, 1.0, 0.0000001, NULL, 0.4, _ds_end, NULL);
+        e_efx_zoom(dm_hide, E_EFX_EFFECT_SPEED_LINEAR, 1.0, 0.0000001, NULL, 0.4, _ds_end, NULL);
         break;
       case DS_GROW:
         x = hx = desk->zone->x;
@@ -197,19 +197,19 @@ _ds_show(E_Desk *desk, int dx, int dy)
         evas_object_clip_set(dm_show, o);
         evas_object_show(o);
         e_comp_object_util_del_list_append(dm_show, o);
-        efx_resize(o, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(hx, hy), desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
+        e_efx_resize(o, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_POINT(hx, hy), desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
         break;
       case DS_ROTATE_OUT:
-        efx_move_circle(dm_hide, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+        e_efx_move_circle(dm_hide, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
           720, 0.4, NULL, NULL);
-        efx_resize(dm_hide, EFX_EFFECT_SPEED_LINEAR, NULL, 1, 1, 0.4, _ds_end, NULL);
+        e_efx_resize(dm_hide, E_EFX_EFFECT_SPEED_LINEAR, NULL, 1, 1, 0.4, _ds_end, NULL);
         break;
       case DS_ROTATE_IN:
         dm_show = dm_add(desk);
         evas_object_resize(dm_show, 1, 1);
-        efx_move_circle(dm_show, EFX_EFFECT_SPEED_LINEAR, EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+        e_efx_move_circle(dm_show, E_EFX_EFFECT_SPEED_LINEAR, E_EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
           720, 0.4, NULL, NULL);
-        efx_resize(dm_show, EFX_EFFECT_SPEED_LINEAR, NULL, desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
+        e_efx_resize(dm_show, E_EFX_EFFECT_SPEED_LINEAR, NULL, desk->zone->w, desk->zone->h, 0.4, _ds_end, NULL);
         break;
       case DS_SLIDE_SPLIT:
       {
@@ -259,7 +259,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
                    else
                      exy.y = desk_show->zone->y + (dy * desk_show->zone->h);
                 }
-              efx_move(dmh, EFX_EFFECT_SPEED_ACCELERATE,
+              e_efx_move(dmh, E_EFX_EFFECT_SPEED_ACCELERATE,
                 &exy, 0.5, (i == (num - 1)) ? _ds_end : NULL, NULL);
               dmh = NULL;
            }
@@ -300,7 +300,7 @@ _ds_show(E_Desk *desk, int dx, int dy)
               evas_object_clip_set(dmh[i], clip[i]);
               evas_object_show(clip[i]);
               /* apply effect coords */
-              efx_move(clip[i], EFX_EFFECT_SPEED_ACCELERATE,
+              e_efx_move(clip[i], E_EFX_EFFECT_SPEED_ACCELERATE,
                 &exy[i], 0.8, (i == 3) ? _ds_end : NULL, NULL);
            }
       }
@@ -334,8 +334,8 @@ _ds_show(E_Desk *desk, int dx, int dy)
               evas_object_clip_set(dmh[i], clip[i]);
               evas_object_show(clip[i]);
               /* resize all quads to 1x1 while moving towards center */
-              efx_resize(clip[i], EFX_EFFECT_SPEED_ACCELERATE,
-                EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+              e_efx_resize(clip[i], E_EFX_EFFECT_SPEED_ACCELERATE,
+                E_EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
                 1, 1 ,0.8, (i == 3) ? _ds_end : NULL, NULL);
            }
       }
@@ -362,8 +362,8 @@ _ds_show(E_Desk *desk, int dx, int dy)
          evas_object_clip_set(dm_show, clip);
          evas_object_show(clip);
          /* resize clip to 1px high while moving towards center */
-         efx_resize(clip, EFX_EFFECT_SPEED_ACCELERATE,
-           EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
+         e_efx_resize(clip, E_EFX_EFFECT_SPEED_ACCELERATE,
+           E_EFX_POINT(desk->zone->x, desk->zone->y + (desk->zone->h / 2)),
            desk->zone->w, 1, 0.45, _ds_blink2, NULL);
       }
         break;
@@ -378,8 +378,8 @@ _ds_show(E_Desk *desk, int dx, int dy)
          e_comp_object_util_del_list_append(dm_hide, clip);
          evas_object_show(clip);
          /* resize clip to 1x1 while moving towards center */
-         efx_resize(clip, EFX_EFFECT_SPEED_DECELERATE,
-           EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
+         e_efx_resize(clip, E_EFX_EFFECT_SPEED_DECELERATE,
+           E_EFX_POINT(desk->zone->x + (desk->zone->w / 2), desk->zone->y + (desk->zone->h / 2)),
            1, 1, 0.6, _ds_end, NULL);
       }
         break;

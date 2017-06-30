@@ -6,7 +6,6 @@
 #endif
 
 #include <e.h>
-#include <Efx.h>
 
 #ifdef ENABLE_NLS
 # include <libintl.h>
