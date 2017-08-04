@@ -47,23 +47,9 @@ AC_DEFINE_UNQUOTED(MODULE_ARCH, "$MODULE_ARCH", "Module architecture")
 module_dir="$(pkg-config --variable=modules enlightenment)"
 AC_SUBST(module_dir)
 datadir="$module_dir/desksanity"
-# Find edje_cc
-AC_ARG_WITH(edje-cc,
-  AC_HELP_STRING([--with-edje-cc=PATH], [specify a specific path to edje_cc]),
-  [
-    v=$withval;
-    EDJE_CC=$v
-  ],[
-    EDJE_CC=$(pkg-config --variable=prefix edje)/bin/edje_cc
-  ]
-)
-AC_SUBST(EDJE_CC)
-AC_MSG_CHECKING([Which edje_cc to use])
-AC_MSG_RESULT(${EDJE_CC})
 
 AC_OUTPUT([
 Makefile
-module.desktop
 e_modules-desksanity.spec
 ], [
 ])

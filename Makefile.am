@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 MAINTAINERCLEANFILES = Makefile.in aclocal.m4 config.guess config.h.in \
 		       config.sub configure compile depcomp install-sh ltmain.sh \
-		       missing module.desktop config.rpath mkinstalldirs
+		       missing config.rpath mkinstalldirs
 
 #if HAVE_PO
 
@@ -25,11 +25,8 @@ glow_top.png
 
 include src/Makefile.mk
 
-e-module-desksanity.edj: e-module-desksanity.edc
-	$(EDJE_CC) -id $(top_srcdir) $< $@
-
 clean-local:
-	 rm -rf *.edj module.desktop e_modules-desksanity.spec *~
+	rm rf e_modules-desksanity.spec *~
 
 uninstall-local:
 	 rm -rf $(DESTDIR)$(module_dir)/$(PACKAGE)

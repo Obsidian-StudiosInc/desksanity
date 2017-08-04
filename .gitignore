@@ -21,7 +21,6 @@ config.sub
 configure
 configure.ac.orig
 depcomp
-e-module-desksanity.edj
 e_modules-desksanity.spec
 install-sh
 libtool
@@ -29,7 +28,6 @@ ltmain.sh
 *.m4
 missing
 mkinstalldirs
-module.desktop
 po/Makefile
 po/Makefile.in
 po/Makefile.in.in
