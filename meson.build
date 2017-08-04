@@ -55,43 +55,43 @@ endif
 module_arch = '@0@-@1@-@2@'.format(host_os, host_machine.cpu_family(), release)
 
 config_h = configuration_data()
-config_h.set('_GNU_SOURCE'             , '1')
-config_h.set('_ALL_SOURCE'             , '1')
+config_h.set('_GNU_SOURCE', '1')
+config_h.set('_ALL_SOURCE', '1')
 config_h.set('_POSIX_PTHREAD_SEMANTICS', '1')
-config_h.set('_TANDEM_SOURCE'          , '1')
-config_h.set('__EXTENSIONS__'          , '1')
+config_h.set('_TANDEM_SOURCE', '1')
+config_h.set('__EXTENSIONS__', '1')
 
-config_h.set_quoted('MODULE_ARCH'      , module_arch)
-config_h.set_quoted('PACKAGE'          , meson.project_name())
-config_h.set_quoted('PACKAGE_VERSION'  , meson.project_version())
-config_h.set_quoted('VERSION'          , meson.project_version())
-config_h.set_quoted('PACKAGE_NAME'     , meson.project_name())
-config_h.set_quoted('BINDIR'           , dir_bin)
-config_h.set_quoted('DATADIR'          , dir_data)
+config_h.set_quoted('MODULE_ARCH', module_arch)
+config_h.set_quoted('PACKAGE', meson.project_name())
+config_h.set_quoted('PACKAGE_VERSION', meson.project_version())
+config_h.set_quoted('VERSION', meson.project_version())
+config_h.set_quoted('PACKAGE_NAME', meson.project_name())
+config_h.set_quoted('BINDIR', dir_bin)
+config_h.set_quoted('DATADIR', dir_data)
 
 if cc.has_function('setenv') == true
-  config_h.set('HAVE_SETENV'           , '1')
+  config_h.set('HAVE_SETENV', '1')
 endif
 if cc.has_function('unsetenv') == true
-  config_h.set('HAVE_UNSETENV'         , '1')
+  config_h.set('HAVE_UNSETENV', '1')
 endif
 if cc.has_function('clearenv') == true
-  config_h.set('HAVE_CLEARENV'         , '1')
+  config_h.set('HAVE_CLEARENV', '1')
 endif
 if cc.has_header('features.h') == true
-  config_h.set('HAVE_FEATURES_H'       , '1')
+  config_h.set('HAVE_FEATURES_H', '1')
 endif
 if cc.has_header('sys/ptrace.h') == true
-  config_h.set('HAVE_SYS_PTRACE_H'     , '1')
+  config_h.set('HAVE_SYS_PTRACE_H', '1')
 endif
 if cc.has_header('arpa/inet.h') == true
-  config_h.set('HAVE_ARPA_INET_H'      , '1')
+  config_h.set('HAVE_ARPA_INET_H', '1')
 endif
 if cc.has_header('netinet/in.h') == true
-  config_h.set('HAVE_NETINET_IN_H'     , '1')
+  config_h.set('HAVE_NETINET_IN_H', '1')
 endif
 if cc.has_header('execinfo.h') == true
-  config_h.set('HAVE_EXECINFO_H'       , '1')
+  config_h.set('HAVE_EXECINFO_H', '1')
 elif cc.has_function('backtrace_symbols_fd', dependencies: 'execinfo') == false
   execinfo_dep = dependency('execinfo', required: false)
 endif
@@ -130,13 +130,29 @@ build_files = [
 	'src/desksanity.c'
 ]
 
+if dep_efl_wl.found() == true
+	build_files += 'src/runner.c'
+	config_h.set('HAVE_RUNNER', '1')
+
+	wayland_scanner = find_program('wayland-scanner')
+		gen_scanner_client = generator(wayland_scanner,
+		output: '@BASENAME@-client-protocol.h',
+		arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
+	gen_scanner_impl = generator(wayland_scanner,
+		output: '@BASENAME@-protocol.c',
+		arguments: ['code', '@INPUT@', '@OUTPUT@'])
+	protos = [ 'e-gadget.xml']
+
+	foreach proto: protos
+		build_files += gen_scanner_client.process(proto)
+		build_files += gen_scanner_impl.process(proto)
+	endforeach
+endif
+
+
 configure_file(output       : 'config.h',
                install      : false,
                configuration: config_h)
-
-if dep_efl_wl.found() == true
-	build_files += 'src/runner.c'
-endif
 
 shared_module('desksanity', build_files,
 	include_directories: include_directories(['src']),
