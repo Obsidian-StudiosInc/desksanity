@@ -154,6 +154,12 @@ configure_file(output       : 'config.h',
                install      : false,
                configuration: config_h)
 
+executable('e_gadget_test',
+	'loader/test.c',
+	dependencies: dependency('elementary'),
+	install_dir: dir_bin,
+	install: true)
+
 shared_module('desksanity', build_files,
 	include_directories: include_directories(['src']),
 	name_prefix: '',
