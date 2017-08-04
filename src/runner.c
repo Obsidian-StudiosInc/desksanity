@@ -55,7 +55,11 @@ _config_close(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_inf
    rconfig->config_dialog = NULL;
    if (ci->cmd_changed)
      {
-        eina_stringshare_replace(&ci->cmd, elm_entry_entry_get(evas_object_data_get(obj, "entry")));
+        char *cmd;
+
+        cmd = elm_entry_markup_to_utf8(elm_entry_entry_get(evas_object_data_get(obj, "entry")));
+        eina_stringshare_replace(&ci->cmd, cmd);
+        free(cmd);
         e_config_save_queue();
      }
    if (!inst) ci->cmd_changed = 0;
@@ -101,9 +105,12 @@ _config_cmd_activate(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Config_Item *ci = data;
    Instance *inst = ci->inst;
+   char *cmd;
 
    ci->cmd_changed = 0;
-   eina_stringshare_replace(&ci->cmd, elm_entry_entry_get(obj));
+   cmd = elm_entry_markup_to_utf8(elm_entry_entry_get(obj));
+   eina_stringshare_replace(&ci->cmd, cmd);
+   free(cmd);
    e_config_save_queue();
    if (!inst) return;
    if (inst->exe) ecore_exe_quit(inst->exe);
