@@ -1,5 +1,8 @@
+#define HAVE_WAYLAND
 #include "e_mod_main.h"
 #include <Efl_Wl.h>
+#include "e-gadget-server-protocol.h"
+#include "action_route-server-protocol.h"
 
 typedef enum
 {
@@ -22,6 +25,8 @@ typedef struct Instance
    Evas_Object *obj;
    Ecore_Exe *exe;
    Config_Item *ci;
+   Eina_Hash *allowed_pids;
+   void *gadget_resource;
 } Instance;
 
 typedef struct RConfig
@@ -35,15 +40,43 @@ static E_Config_DD *conf_item_edd = NULL;
 
 static RConfig *rconfig;
 static Eina_List *instances;
+static Eina_List *wizards;
 
 static Ecore_Event_Handler *exit_handler;
 
 typedef struct Wizard_Item
 {
+   Evas_Object *site;
+   Evas_Object *popup;
    E_Gadget_Wizard_End_Cb cb;
    void *data;
    int id;
 } Wizard_Item;
+
+static void
+runner_run(Instance *inst)
+{
+   char *preload = eina_strdup(getenv("LD_PRELOAD"));
+   char buf[PATH_MAX];
+   char *file = ecore_file_dir_get(mod->module->file);
+   int pid;
+
+   snprintf(buf, sizeof(buf), "%s/loader.so", file);
+   e_util_env_set("LD_PRELOAD", buf);
+
+   snprintf(buf, sizeof(buf), "%d", inst->ci->id);
+   e_util_env_set("E_GADGET_ID", buf);
+
+   inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+
+   e_util_env_set("E_GADGET_ID", NULL);
+   e_util_env_set("LD_PRELOAD", preload);
+   free(file);
+   free(preload);
+   eina_hash_free_buckets(inst->allowed_pids);
+   pid = ecore_exe_pid_get(inst->exe);
+   eina_hash_add(inst->allowed_pids, &pid, (void*)1);
+}
 
 static void
 _config_close(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
@@ -66,7 +99,7 @@ _config_close(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_inf
    if (!ci->cmd_changed) return;
    ci->cmd_changed = 0;
    if (inst->exe) ecore_exe_quit(inst->exe);
-   inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+   runner_run(inst);
 }
 
 static void
@@ -114,7 +147,7 @@ _config_cmd_activate(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    e_config_save_queue();
    if (!inst) return;
    if (inst->exe) ecore_exe_quit(inst->exe);
-   inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+   runner_run(inst);
 }
 
 EINTERN Evas_Object *
@@ -228,7 +261,16 @@ _conf_item_get(int *id)
 }
 
 static void
-_wizard_end(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+wizard_site_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Wizard_Item *wi = data;
+   wi->site = NULL;
+   evas_object_hide(wi->popup);
+   evas_object_del(wi->popup);
+}
+
+static void
+_wizard_config_end(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Wizard_Item *wi = data;
    Eina_List *l;
@@ -246,27 +288,33 @@ _wizard_end(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void 
           }
      }
 
-   wi->cb(wi->data, wi->id);
+   if (wi->site)
+     wi->cb(wi->data, wi->id);
+   wizards = eina_list_remove(wizards, wi);
+   if (wi->site)
+     evas_object_event_callback_del_full(wi->site, EVAS_CALLBACK_DEL, wizard_site_del, wi);
    free(wi);
 }
 
 static Evas_Object *
-runner_wizard(E_Gadget_Wizard_End_Cb cb, void *data)
+runner_wizard(E_Gadget_Wizard_End_Cb cb, void *data, Evas_Object *site)
 {
    int id = 0;
    Config_Item *ci;
    Wizard_Item *wi;
-   Evas_Object *obj;
 
    wi = E_NEW(Wizard_Item, 1);
    wi->cb = cb;
    wi->data = data;
+   wi->site = site;
+   evas_object_event_callback_add(wi->site, EVAS_CALLBACK_DEL, wizard_site_del, wi);
+   wizards = eina_list_append(wizards, wi);
 
    ci = _conf_item_get(&id);
    wi->id = ci->id;
-   obj = config_runner(ci, NULL);
-   evas_object_event_callback_add(obj, EVAS_CALLBACK_DEL, _wizard_end, wi);
-   return obj;
+   wi->popup = config_runner(ci, NULL);
+   evas_object_event_callback_add(wi->popup, EVAS_CALLBACK_DEL, _wizard_config_end, wi);
+   return wi->popup;
 }
 
 /////////////////////////////////////////
@@ -289,14 +337,33 @@ runner_removed(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 }
 
 static void
+runner_site_gravity(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+   if (inst->gadget_resource)
+     e_gadget_send_gadget_gravity(inst->gadget_resource, e_gadget_site_gravity_get(obj));
+}
+
+static void
+runner_site_anchor(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+   if (inst->gadget_resource)
+     e_gadget_send_gadget_anchor(inst->gadget_resource, e_gadget_site_anchor_get(obj));
+}
+
+static void
 runner_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
 
    evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_removed", runner_removed, inst);
+   evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_anchor", runner_site_anchor, inst);
+   evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_gravity", runner_site_gravity, inst);
    E_FREE_FUNC(inst->exe, ecore_exe_quit);
    if (inst->ci) inst->ci->inst = NULL;
    instances = eina_list_remove(instances, inst);
+   eina_hash_free(inst->allowed_pids);
    free(inst);
 }
 
@@ -316,12 +383,71 @@ runner_created(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
    evas_object_smart_callback_del_full(obj, "gadget_created", runner_created, data);
 }
 
+
+static void
+gadget_unbind(struct wl_resource *resource)
+{
+   Instance *inst = wl_resource_get_user_data(resource);
+   inst->gadget_resource = NULL;
+}
+
+static void
+gadget_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
+{
+   struct wl_resource *res;
+   Instance *inst = data;
+   pid_t pid;
+   Evas_Object *site;
+
+   wl_client_get_credentials(client, &pid, NULL, NULL);
+   if (pid != ecore_exe_pid_get(inst->exe))
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
+
+   res = wl_resource_create(client, &e_gadget_interface, version, id);
+   wl_resource_set_implementation(res, NULL, data, gadget_unbind);
+   inst->gadget_resource = res;
+   site = e_gadget_site_get(inst->obj);
+   e_gadget_send_gadget_orient(res, e_gadget_site_orient_get(site));
+   e_gadget_send_gadget_gravity(res, e_gadget_site_gravity_get(site));
+   e_gadget_send_gadget_anchor(res, e_gadget_site_anchor_get(site));
+}
+
+static void
+ar_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
+{
+   struct wl_resource *res;
+   Instance *inst = data;
+   int v;
+   const void *ar_interface;
+   pid_t pid;
+
+   wl_client_get_credentials(client, &pid, NULL, NULL);
+   if (pid != ecore_exe_pid_get(inst->exe))
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
+   ar_interface = e_comp_wl_extension_action_route_interface_get(&v);
+
+   if (!(res = wl_resource_create(client, &action_route_interface, MIN(v, version), id)))
+     {
+        wl_client_post_no_memory(client);
+        return;
+     }
+
+   wl_resource_set_implementation(res, ar_interface, inst->allowed_pids, NULL);
+}
+
 static Evas_Object *
 runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
 {
    Evas_Object *obj;
    Instance *inst;
    Config_Item *ci = NULL;
+   int ar_version;
 
    if (orient) return NULL;
    if (*id > 0) ci = _conf_item_get(id);
@@ -338,15 +464,21 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    if (!inst->ci)
      inst->ci = _conf_item_get(id);
    inst->ci->inst = inst;
+   inst->allowed_pids = eina_hash_int32_new(NULL);
    inst->obj = efl_wl_add(e_comp->evas);
    efl_wl_aspect_set(inst->obj, 1);
    efl_wl_minmax_set(inst->obj, 1);
+   efl_wl_global_add(inst->obj, &e_gadget_interface, 1, inst, gadget_bind);
+   e_comp_wl_extension_action_route_interface_get(&ar_version);
+   efl_wl_global_add(inst->obj, &action_route_interface, ar_version, inst, ar_bind);
    evas_object_data_set(inst->obj, "runner", inst);
    evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_MOUSE_DOWN, mouse_down, inst);
    evas_object_smart_callback_add(parent, "gadget_created", runner_created, inst);
    evas_object_smart_callback_add(parent, "gadget_removed", runner_removed, inst);
+   evas_object_smart_callback_add(parent, "gadget_site_anchor", runner_site_anchor, inst);
+   evas_object_smart_callback_add(parent, "gadget_site_gravity", runner_site_gravity, inst);
    evas_object_pass_events_set(inst->obj, !inst->ci->allow_events);
-   inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+   runner_run(inst);
    ecore_exe_data_set(inst->exe, inst);
    evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_DEL, runner_del, inst);
    return inst->obj;
@@ -361,7 +493,7 @@ runner_exe_del(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Exe_Event_Del *ev)
    switch (inst->ci->exit_mode)
      {
       case EXIT_MODE_RESTART:
-        inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+        runner_run(inst);
         ecore_exe_data_set(inst->exe, inst);
         break;
       case EXIT_MODE_DELETE:

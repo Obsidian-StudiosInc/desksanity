@@ -135,18 +135,45 @@ if dep_efl_wl.found() == true
 	config_h.set('HAVE_RUNNER', '1')
 
 	wayland_scanner = find_program('wayland-scanner')
-		gen_scanner_client = generator(wayland_scanner,
-		output: '@BASENAME@-client-protocol.h',
-		arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
+	gen_scanner_client = generator(wayland_scanner,
+			output: '@BASENAME@-client-protocol.h',
+			arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
+	gen_scanner_server = generator(wayland_scanner,
+			output: '@BASENAME@-server-protocol.h',
+			arguments: ['server-header', '@INPUT@', '@OUTPUT@'])
 	gen_scanner_impl = generator(wayland_scanner,
-		output: '@BASENAME@-protocol.c',
-		arguments: ['code', '@INPUT@', '@OUTPUT@'])
-	protos = [ 'e-gadget.xml']
+			output: '@BASENAME@-protocol.c',
+			arguments: ['code', '@INPUT@', '@OUTPUT@'])
+	protos = [
+		'e-gadget.xml',
+		'action_route.xml',
+	]
 
+	loader_src = ['loader/loader.c']
 	foreach proto: protos
-		build_files += gen_scanner_client.process(proto)
+		loader_src += gen_scanner_client.process(proto)
+		loader_src += gen_scanner_impl.process(proto)
+	endforeach
+	foreach proto: protos
+		build_files += gen_scanner_server.process(proto)
 		build_files += gen_scanner_impl.process(proto)
 	endforeach
+
+	shared_library('loader', loader_src,
+		name_prefix: '',
+		dependencies: [
+			dependency('elementary'),
+			dependency('ecore-wl2'),
+			dependency('wayland-client'),
+			cc.find_library('uuid')],
+		install_dir: join_paths([dir_module_e, module_arch]),
+		install: true)
+
+	executable('e_gadget_start',
+		'loader/start.c',
+		dependencies: [dependency('elementary'), dependency('enlightenment')],
+		install_dir: dir_bin,
+		install: true)
 endif
 
 
@@ -166,5 +193,6 @@ shared_module('desksanity', build_files,
 	dependencies: [dep_e, dep_efl_wl],
 	install_dir: join_paths([dir_module_e, module_arch]),
 	install: true)
+
 
 meson.add_install_script('meson_modules.sh', join_paths([dir_module_e, module_arch, 'desksanity.so']))
