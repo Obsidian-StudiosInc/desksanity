@@ -1,17 +1,17 @@
 project('desksanity', 'c',
-        version        : '1.1.99',
-        license        : 'BSD 2 clause',
-        default_options: [ 'c_std=gnu99', 'warning_level=2' ],
-        meson_version  : '>= 0.40.0')
+	version: '1.1.99',
+	license: 'BSD 2 clause',
+	default_options: [ 'c_std=gnu99', 'warning_level=2' ],
+	meson_version: '>= 0.40.0')
 
 add_global_arguments('-DHAVE_CONFIG_H=1', language: 'c')
-dir_prefix    = get_option('prefix')
-dir_bin       = join_paths(dir_prefix, get_option('bindir'))
-dir_sysconf   = get_option('sysconfdir')
-dir_data      = join_paths(dir_prefix, get_option('datadir'))
-dir_include   = join_paths(dir_prefix, get_option('includedir'))
+dir_prefix = get_option('prefix')
+dir_bin = join_paths(dir_prefix, get_option('bindir'))
+dir_sysconf = get_option('sysconfdir')
+dir_data = join_paths(dir_prefix, get_option('datadir'))
+dir_include = join_paths(dir_prefix, get_option('includedir'))
 dir_include_e = join_paths(dir_include, meson.project_name())
-dir_lib       = join_paths(dir_prefix, get_option('libdir'))
+dir_lib = join_paths(dir_prefix, get_option('libdir'))
 
 
 pkgconfig = import('pkgconfig')
@@ -20,36 +20,36 @@ cc = meson.get_compiler('c')
 # disable for release builds
 dev_cflags = []
 dev_cflags_try = [
-  '-Wall',
-  '-W',
-  '-Wpointer-arith',
-  '-Wshadow',
-  '-Wno-missing-field-initializers',
-  '-Wfloat-equal',
-  '-Wuninitialized',
-  '-Wundef',
-  '-Wcast-align',
-  '-Wformat=2',
-  '-Wno-format-y2k',
+	'-Wall',
+	'-W',
+	'-Wpointer-arith',
+	'-Wshadow',
+	'-Wno-missing-field-initializers',
+	'-Wfloat-equal',
+	'-Wuninitialized',
+	'-Wundef',
+	'-Wcast-align',
+	'-Wformat=2',
+	'-Wno-format-y2k',
 ]
 
 foreach cf: dev_cflags_try
-  if cc.has_argument(cf) == true
-    dev_cflags += cf
-  endif
+if cc.has_argument(cf) == true
+dev_cflags += cf
+endif
 endforeach
 add_global_arguments(dev_cflags, language: 'c')
 
 release = 'ver-0.22'
 host_os = host_machine.system()
 if host_os == 'linux'
-  if cc.has_header_symbol('features.h', '__UCLIBC__')
-    host_os = 'linux-uclibc'
-  elif cc.has_header_symbol('features.h', '__dietlibc__')
-    host_os = 'linux-dietlibc'
-  else
-    host_os = 'linux-gnu'
-  endif
+	if cc.has_header_symbol('features.h', '__UCLIBC__')
+		host_os = 'linux-uclibc'
+	elif cc.has_header_symbol('features.h', '__dietlibc__')
+		host_os = 'linux-dietlibc'
+	else
+		host_os = 'linux-gnu'
+	endif
 endif
 
 module_arch = '@0@-@1@-@2@'.format(host_os, host_machine.cpu_family(), release)
@@ -70,38 +70,38 @@ config_h.set_quoted('BINDIR', dir_bin)
 config_h.set_quoted('DATADIR', dir_data)
 
 if cc.has_function('setenv') == true
-  config_h.set('HAVE_SETENV', '1')
+	config_h.set('HAVE_SETENV', '1')
 endif
 if cc.has_function('unsetenv') == true
-  config_h.set('HAVE_UNSETENV', '1')
+	config_h.set('HAVE_UNSETENV', '1')
 endif
 if cc.has_function('clearenv') == true
-  config_h.set('HAVE_CLEARENV', '1')
+	config_h.set('HAVE_CLEARENV', '1')
 endif
 if cc.has_header('features.h') == true
-  config_h.set('HAVE_FEATURES_H', '1')
+	config_h.set('HAVE_FEATURES_H', '1')
 endif
 if cc.has_header('sys/ptrace.h') == true
-  config_h.set('HAVE_SYS_PTRACE_H', '1')
+	config_h.set('HAVE_SYS_PTRACE_H', '1')
 endif
 if cc.has_header('arpa/inet.h') == true
-  config_h.set('HAVE_ARPA_INET_H', '1')
+	config_h.set('HAVE_ARPA_INET_H', '1')
 endif
 if cc.has_header('netinet/in.h') == true
-  config_h.set('HAVE_NETINET_IN_H', '1')
+	config_h.set('HAVE_NETINET_IN_H', '1')
 endif
 if cc.has_header('execinfo.h') == true
-  config_h.set('HAVE_EXECINFO_H', '1')
+	config_h.set('HAVE_EXECINFO_H', '1')
 elif cc.has_function('backtrace_symbols_fd', dependencies: 'execinfo') == false
-  execinfo_dep = dependency('execinfo', required: false)
+	execinfo_dep = dependency('execinfo', required: false)
 endif
 
 if cc.has_header('fnmatch.h') == false
-  error('fnmatch.h not found')
+	error('fnmatch.h not found')
 endif
 
 if cc.has_function('fnmatch') == false
-  dep_fnmatch = dependency('fnmatch', required: true)
+	dep_fnmatch = dependency('fnmatch', required: true)
 endif
 
 add_global_arguments('-DPACKAGE_BIN_DIR="@0@"'.format(dir_bin), language: 'c')
@@ -112,7 +112,7 @@ add_global_arguments('-DPACKAGE_SYSCONF_DIR="@0@"'.format(dir_sysconf), language
 dep_efl_wl = dependency('efl-wl', required: false)
 dep_e = dependency('enlightenment')
 
-dir_module_e  = join_paths([dep_e.get_pkgconfig_variable('modules'), 'desksanity'])
+dir_module_e = join_paths([dep_e.get_pkgconfig_variable('modules'), 'desksanity'])
 edje_cc = find_program('edje_cc')
 
 install_data(['e-module-desksanity.edj', 'module.desktop'],
@@ -150,9 +150,9 @@ if dep_efl_wl.found() == true
 endif
 
 
-configure_file(output       : 'config.h',
-               install      : false,
-               configuration: config_h)
+configure_file(output: 'config.h',
+	 install: false,
+	 configuration: config_h)
 
 executable('e_gadget_test',
 	'loader/test.c',
