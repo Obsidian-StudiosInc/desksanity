@@ -145,7 +145,6 @@ config_runner(Config_Item *ci, E_Zone *zone)
    E_FILL(o);
    evas_object_show(o);
    elm_entry_single_line_set(o, 1);
-   elm_object_focus_set(o, 1);
    elm_entry_entry_set(o, ci->cmd);
    evas_object_smart_callback_add(o, "changed,user", _config_cmd_changed, ci);
    evas_object_smart_callback_add(o, "activated", _config_cmd_activate, ci);
@@ -195,6 +194,8 @@ elm_object_disabled_set(o, 1);
    evas_object_event_callback_priority_add(popup, EVAS_CALLBACK_DEL, EVAS_CALLBACK_PRIORITY_BEFORE, _config_close, ci);
    evas_object_data_set(popup, "entry", ent);
    e_comp_grab_input(1, 1);
+
+   elm_object_focus_set(ent, 1);
 
    return rconfig->config_dialog = popup;
 }
