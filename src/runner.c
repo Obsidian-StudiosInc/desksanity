@@ -340,6 +340,7 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    inst->ci->inst = inst;
    inst->obj = efl_wl_add(e_comp->evas);
    efl_wl_aspect_set(inst->obj, 1);
+   efl_wl_minmax_set(inst->obj, 1);
    evas_object_data_set(inst->obj, "runner", inst);
    evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_MOUSE_DOWN, mouse_down, inst);
    evas_object_smart_callback_add(parent, "gadget_created", runner_created, inst);
