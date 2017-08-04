@@ -294,6 +294,7 @@ runner_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info E
    Instance *inst = data;
 
    evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_removed", runner_removed, inst);
+   E_FREE_FUNC(inst->exe, ecore_exe_quit);
    if (inst->ci) inst->ci->inst = NULL;
    instances = eina_list_remove(instances, inst);
    free(inst);
