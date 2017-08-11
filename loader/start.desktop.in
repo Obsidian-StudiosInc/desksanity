@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Start
+Exec=@GADGET_DIR@/start/e_gadget_start
+Icon=e/gadget/start/main

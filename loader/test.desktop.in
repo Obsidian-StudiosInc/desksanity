@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Test
+Exec=@GADGET_DIR@/test/e_gadget_test

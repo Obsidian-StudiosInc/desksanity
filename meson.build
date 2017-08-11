@@ -130,7 +130,7 @@ build_files = [
 	'src/desksanity.c'
 ]
 
-if dep_efl_wl.found() == true
+if dep_efl_wl.found() == true and dep_e.get_pkgconfig_variable('wayland') == 'true'
 	build_files += 'src/runner.c'
 	config_h.set('HAVE_RUNNER', '1')
 
@@ -169,23 +169,42 @@ if dep_efl_wl.found() == true
 		install_dir: join_paths([dir_module_e, module_arch]),
 		install: true)
 
+	dir_gadgets = join_paths([dir_lib, 'enlightenment/gadgets', dep_e.get_pkgconfig_variable('release')])
 	executable('e_gadget_start',
 		'loader/start.c',
+		c_args: '-fPIE',
+		link_args: '-fPIE',
 		dependencies: [dependency('elementary'), dependency('enlightenment')],
-		install_dir: dir_bin,
+		install_dir: join_paths([dir_gadgets, 'start']),
 		install: true)
+
+	executable('e_gadget_test',
+		'loader/test.c',
+		c_args: '-fPIE',
+		link_args: '-fPIE',
+		dependencies: dependency('elementary'),
+		install_dir: join_paths([dir_gadgets, 'test']),
+		install: true)
+
+	config_h.set_quoted('GADGET_DIR', dir_gadgets)
+	desktop_data = configuration_data()
+	desktop_data.set('GADGET_DIR', dir_gadgets)
+	configure_file(input: 'loader/test.desktop.in',
+		output: 'test.desktop',
+		install: true,
+		install_dir: join_paths([dir_gadgets, 'test']),
+		configuration: desktop_data)
+	configure_file(input: 'loader/start.desktop.in',
+		output: 'start.desktop',
+		install: true,
+		install_dir: join_paths([dir_gadgets, 'start']),
+		configuration: desktop_data)
 endif
 
 
 configure_file(output: 'config.h',
-	 install: false,
-	 configuration: config_h)
-
-executable('e_gadget_test',
-	'loader/test.c',
-	dependencies: dependency('elementary'),
-	install_dir: dir_bin,
-	install: true)
+	install: false,
+	configuration: config_h)
 
 shared_module('desksanity', build_files,
 	include_directories: include_directories(['src']),

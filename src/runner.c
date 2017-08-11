@@ -45,7 +45,11 @@ static RConfig *rconfig;
 static Eina_List *instances;
 static Eina_List *wizards;
 
-static Ecore_Event_Handler *exit_handler;
+static Eina_Hash *sandbox_gadgets;
+
+static Eina_List *handlers;
+static Eio_Monitor *gadget_monitor;
+static Eio_File *gadget_lister;
 
 typedef struct Wizard_Item
 {
@@ -54,6 +58,7 @@ typedef struct Wizard_Item
    E_Gadget_Wizard_End_Cb cb;
    void *data;
    int id;
+   Eina_Bool sandbox : 1;
 } Wizard_Item;
 
 static void
@@ -330,10 +335,11 @@ static void
 runner_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
+   Evas_Object *site = e_gadget_site_get(obj);
 
-   evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_removed", runner_removed, inst);
-   evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_anchor", runner_site_anchor, inst);
-   evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_gravity", runner_site_gravity, inst);
+   evas_object_smart_callback_del_full(site, "gadget_removed", runner_removed, inst);
+   evas_object_smart_callback_del_full(site, "gadget_site_anchor", runner_site_anchor, inst);
+   evas_object_smart_callback_del_full(site, "gadget_site_gravity", runner_site_gravity, inst);
    if (inst->ci)
      {
         inst->ci->inst = NULL;
@@ -523,23 +529,27 @@ popup_added(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    evas_object_focus_set(event_info, 1);
 }
 
-static Evas_Object *
-runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
+static void
+runner_hints(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
-   Evas_Object *obj;
+   Instance *inst = data;
+   int w, h;
+   Evas_Aspect_Control aspect;
+
+   evas_object_size_hint_min_get(obj, &w, &h);
+   evas_object_size_hint_min_set(inst->box, w, h);
+   evas_object_size_hint_max_get(obj, &w, &h);
+   evas_object_size_hint_max_set(inst->box, w, h);
+   evas_object_size_hint_aspect_get(obj, &aspect, &w, &h);
+   evas_object_size_hint_aspect_set(inst->box, aspect, w, h);
+}
+
+static Evas_Object *
+gadget_create(Evas_Object *parent, Config_Item *ci, int *id, E_Gadget_Site_Orient orient)
+{
    Instance *inst;
-   Config_Item *ci = NULL;
    int ar_version;
 
-   if (orient) return NULL;
-   if (*id > 0) ci = _conf_item_get(id);
-   if ((*id < 0) || ci->inst)
-     {
-        obj = elm_image_add(parent);
-        elm_image_file_set(obj, e_theme_edje_file_get(NULL, "e/icons/modules-launcher"), "e/icons/modules-launcher");
-        evas_object_size_hint_aspect_set(obj, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
-        return obj;
-     }
    inst = E_NEW(Instance, 1);
    instances = eina_list_append(instances, inst);
    inst->ci = ci;
@@ -565,12 +575,32 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    evas_object_smart_callback_add(parent, "gadget_site_anchor", runner_site_anchor, inst);
    evas_object_smart_callback_add(parent, "gadget_site_gravity", runner_site_gravity, inst);
    runner_run(inst);
+   e_util_size_debug_set(inst->obj, 1);
    ecore_exe_data_set(inst->exe, inst);
    evas_object_event_callback_add(inst->box, EVAS_CALLBACK_DEL, runner_del, inst);
    inst->box = elm_box_add(e_comp->elm);
+   evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_CHANGED_SIZE_HINTS, runner_hints, inst);
    elm_box_homogeneous_set(inst->box, 1);
    elm_box_pack_end(inst->box, inst->obj);
    return inst->box;
+}
+
+static Evas_Object *
+runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
+{
+   Evas_Object *obj;
+   Config_Item *ci = NULL;
+
+   if (orient) return NULL;
+   if (*id > 0) ci = _conf_item_get(id);
+   if ((*id < 0) || ci->inst)
+     {
+        obj = elm_image_add(parent);
+        elm_image_file_set(obj, e_theme_edje_file_get(NULL, "e/icons/modules-launcher"), "e/icons/modules-launcher");
+        evas_object_size_hint_aspect_set(obj, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
+        return obj;
+     }
+   return gadget_create(parent, ci, id, orient);
 }
 
 static Eina_Bool
@@ -582,8 +612,14 @@ runner_exe_del(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Exe_Event_Del *ev)
    switch (inst->ci->exit_mode)
      {
       case EXIT_MODE_RESTART:
-        runner_run(inst);
-        ecore_exe_data_set(inst->exe, inst);
+        /* FIXME: probably notify? */
+        if (ev->exit_code == 255) //exec error
+          e_gadget_del(inst->box);
+        else
+          {
+             runner_run(inst);
+             ecore_exe_data_set(inst->exe, inst);
+          }
         break;
       case EXIT_MODE_DELETE:
         e_gadget_del(inst->box);
@@ -593,6 +629,138 @@ runner_exe_del(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Exe_Event_Del *ev)
 }
 
 ///////////////////////////////
+
+static Evas_Object *
+sandbox_create(Evas_Object *parent, const char *type, int *id, E_Gadget_Site_Orient orient)
+{
+   Efreet_Desktop *ed = eina_hash_find(sandbox_gadgets, type);
+   Config_Item *ci = NULL;
+
+   if (*id > 0) ci = _conf_item_get(id);
+   if ((*id < 0) || (ci && ci->inst))
+     {
+        if (ed->icon)
+          {
+             int w, h;
+             Eina_Bool fail = EINA_FALSE;
+             Evas_Object *obj;
+
+             obj = elm_image_add(parent);
+             if (ed->icon[0] == '/')
+               {
+                  if (eina_str_has_extension(ed->icon, ".edj"))
+                    fail = !elm_image_file_set(obj, ed->icon, "icon");
+                  else
+                    fail = !elm_image_file_set(obj, ed->icon, NULL);
+               }
+             else
+               {
+                  if (!elm_image_file_set(obj, e_theme_edje_file_get(NULL, ed->icon), ed->icon))
+                    fail = !elm_icon_standard_set(obj, ed->icon);
+               }
+             if (!fail)
+               {
+                  elm_image_object_size_get(obj, &w, &h);
+                  if (w && h)
+                    evas_object_size_hint_aspect_set(obj, EVAS_ASPECT_CONTROL_BOTH, w, h);
+                  return obj;
+               }
+             evas_object_del(obj);
+          }
+     }
+   if (!ci)
+     {
+        ci = _conf_item_get(id);
+        ci->cmd = eina_stringshare_add(ed->exec);
+        ci->exit_mode = EXIT_MODE_RESTART;
+     }
+   return gadget_create(parent, ci, id, orient);
+}
+
+static char *
+sandbox_name(const char *filename)
+{
+   Efreet_Desktop *ed = eina_hash_find(sandbox_gadgets, filename);
+   const char *name = ed->name ?: ed->generic_name;
+   char buf[1024];
+
+   if (name) return strdup(name);
+   strncpy(buf, ed->orig_path, sizeof(buf) - 1);
+   buf[0] = toupper(buf[0]);
+   return strdup(buf);
+}
+
+///////////////////////////////
+
+static void
+gadget_dir_add(const char *filename)
+{
+   const char *file;
+   char buf[PATH_MAX];
+   Efreet_Desktop *ed;
+
+   file = ecore_file_file_get(filename);
+   snprintf(buf, sizeof(buf), "%s/%s.desktop", filename, file);
+   ed = efreet_desktop_new(buf);
+   EINA_SAFETY_ON_NULL_RETURN(ed);
+   eina_hash_add(sandbox_gadgets, filename, ed);
+   e_gadget_external_type_add("runner_sandbox", filename, sandbox_create, NULL);
+   e_gadget_external_type_name_cb_set("runner_sandbox", filename, sandbox_name);
+}
+
+static Eina_Bool
+monitor_dir_create(void *d EINA_UNUSED, int t EINA_UNUSED, Eio_Monitor_Event *ev)
+{
+   if (!eina_hash_find(sandbox_gadgets, ev->filename))
+     gadget_dir_add(ev->filename);
+   return ECORE_CALLBACK_RENEW;
+}
+
+static Eina_Bool
+monitor_dir_del(void *d EINA_UNUSED, int t EINA_UNUSED, Eio_Monitor_Event *ev)
+{
+   eina_hash_del_by_key(sandbox_gadgets, ev->filename);
+   e_gadget_external_type_del("runner_sandbox", ev->filename);
+   return ECORE_CALLBACK_RENEW;
+}
+
+static Eina_Bool
+monitor_error(void *d EINA_UNUSED, int t EINA_UNUSED, Eio_Monitor_Error *ev)
+{
+   /* panic? */
+   return ECORE_CALLBACK_RENEW;
+}
+
+
+static Eina_Bool
+list_filter_cb(void *d EINA_UNUSED, Eio_File *ls EINA_UNUSED, const Eina_File_Direct_Info *info)
+{
+   struct stat st;
+   char buf[PATH_MAX];
+
+   if (info->type != EINA_FILE_DIR) return EINA_FALSE;
+   if (info->path[info->name_start] == '.') return EINA_FALSE;
+   snprintf(buf, sizeof(buf), "%s/%s.desktop", info->path, info->path + info->name_start);
+   return !stat(info->path, &st);
+}
+
+static void
+list_main_cb(void *d EINA_UNUSED, Eio_File *ls EINA_UNUSED, const Eina_File_Direct_Info *info)
+{
+   gadget_dir_add(info->path);
+}
+
+static void
+list_done_cb(void *d EINA_UNUSED, Eio_File *ls EINA_UNUSED)
+{
+   gadget_lister = NULL;
+}
+
+static void
+list_error_cb(void *d EINA_UNUSED, Eio_File *ls EINA_UNUSED, int error EINA_UNUSED)
+{
+   gadget_lister = NULL;
+}
 
 EINTERN void
 runner_init(void)
@@ -617,13 +785,23 @@ runner_init(void)
    if (!rconfig) rconfig = E_NEW(RConfig, 1);
 
    e_gadget_type_add("runner", runner_create, runner_wizard);
-   exit_handler = ecore_event_handler_add(ECORE_EXE_EVENT_DEL, (Ecore_Event_Handler_Cb)runner_exe_del, NULL);
+   {
+      gadget_monitor = eio_monitor_add(GADGET_DIR);
+      gadget_lister = eio_file_direct_ls(GADGET_DIR, list_filter_cb, list_main_cb, list_done_cb, list_error_cb, NULL);
+   }
+   E_LIST_HANDLER_APPEND(handlers, ECORE_EXE_EVENT_DEL, runner_exe_del, NULL);
+   E_LIST_HANDLER_APPEND(handlers, EIO_MONITOR_DIRECTORY_CREATED, monitor_dir_create, NULL);
+   E_LIST_HANDLER_APPEND(handlers, EIO_MONITOR_DIRECTORY_DELETED, monitor_dir_del, NULL);
+   E_LIST_HANDLER_APPEND(handlers, EIO_MONITOR_ERROR, monitor_error, NULL);
+
+   sandbox_gadgets = eina_hash_string_superfast_new((Eina_Free_Cb)efreet_desktop_free);
 }
 
 EINTERN void
 runner_shutdown(void)
 {
    e_gadget_type_del("runner");
+   e_gadget_external_type_del("runner_sandbox", NULL);
 
    if (rconfig)
      {
@@ -645,7 +823,9 @@ runner_shutdown(void)
    E_FREE(rconfig);
    E_CONFIG_DD_FREE(conf_edd);
    E_CONFIG_DD_FREE(conf_item_edd);
-   E_FREE_FUNC(exit_handler, ecore_event_handler_del);
+   E_FREE_LIST(handlers, ecore_event_handler_del);
+   E_FREE_FUNC(sandbox_gadgets, eina_hash_free);
+   E_FREE_FUNC(gadget_lister, eio_file_cancel);
 }
 
 EINTERN void
