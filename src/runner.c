@@ -334,8 +334,13 @@ runner_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info E
    evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_removed", runner_removed, inst);
    evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_anchor", runner_site_anchor, inst);
    evas_object_smart_callback_del_full(e_gadget_site_get(obj), "gadget_site_gravity", runner_site_gravity, inst);
-   E_FREE_FUNC(inst->exe, ecore_exe_quit);
-   if (inst->ci) inst->ci->inst = NULL;
+   if (inst->ci)
+     {
+        inst->ci->inst = NULL;
+        E_FREE_FUNC(inst->exe, ecore_exe_quit);
+     }
+   else
+     E_FREE_FUNC(inst->exe, ecore_exe_terminate);
    instances = eina_list_remove(instances, inst);
    eina_hash_free(inst->allowed_pids);
    free(inst);
