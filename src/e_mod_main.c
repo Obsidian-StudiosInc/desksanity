@@ -338,6 +338,7 @@ ds_fade_setup(Evas_Object_Event_Cb click_cb)
 EINTERN void
 ds_fade_end(Ecore_Cb end_cb, Evas_Object_Event_Cb click_cb)
 {
+   if (!fade_obj) return;
    evas_object_pass_events_set(fade_obj, 1);
    e_efx_fade(fade_obj, E_EFX_EFFECT_SPEED_DECELERATE, E_EFX_COLOR(0, 0, 0), 0, 0.3, (E_Efx_End_Cb)_ds_fade_end, end_cb);
    if (click_cb)
