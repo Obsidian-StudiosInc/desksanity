@@ -164,7 +164,7 @@ main(int argc, char *argv[])
    elm_win_alpha_set(win, 1);
    ly = elm_layout_add(win);
    evas_object_size_hint_min_set(win, 100, 100);
-   evas_object_size_hint_aspect_set(ly, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
+   evas_object_size_hint_aspect_set(win, EVAS_ASPECT_CONTROL_BOTH, 1, 1);
    elm_layout_file_set(ly,
      elm_theme_group_path_find(NULL, "e/gadget/start/main"), "e/gadget/start/main");
    elm_win_resize_object_add(win, ly);
