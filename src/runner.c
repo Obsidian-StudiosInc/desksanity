@@ -21,11 +21,15 @@ typedef struct Config_Item
 
 typedef struct Instance
 {
+   Evas_Object *box;
    Evas_Object *obj;
    Ecore_Exe *exe;
    Config_Item *ci;
    Eina_Hash *allowed_pids;
    void *gadget_resource;
+   Evas_Object *popup;
+   Evas_Object *ctxpopup;
+   Eina_List *extracted;
 } Instance;
 
 typedef struct RConfig
@@ -219,9 +223,9 @@ _conf_item_get(int *id)
 
    ci = E_NEW(Config_Item, 1);
    if (!*id)
-     ci->id = rconfig->items ? eina_list_count(rconfig->items) + 1 : 1;
+     *id = ci->id = rconfig->items ? eina_list_count(rconfig->items) + 1 : 1;
    else
-     ci->id = -1;
+     ci->id = *id;
 
    if (ci->id < 1) return ci;
    rconfig->items = eina_list_append(rconfig->items, ci);
@@ -300,7 +304,7 @@ static void
 runner_removed(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Instance *inst = data;
-   if (inst->obj != event_info) return;
+   if (inst->box != event_info) return;
    rconfig->items = eina_list_remove(rconfig->items, inst->ci);
    eina_stringshare_del(inst->ci->cmd);
    E_FREE(inst->ci);
@@ -348,8 +352,8 @@ static void
 runner_created(void *data, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
    Instance *inst = data;
-   if (inst->obj != event_info) return;
-   e_gadget_configure_cb_set(inst->obj, runner_gadget_configure);
+   if (inst->box != event_info) return;
+   e_gadget_configure_cb_set(inst->box, runner_gadget_configure);
    evas_object_smart_callback_del_full(obj, "gadget_created", runner_created, data);
 }
 
@@ -379,7 +383,7 @@ gadget_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
    res = wl_resource_create(client, &e_gadget_interface, version, id);
    wl_resource_set_implementation(res, NULL, data, gadget_unbind);
    inst->gadget_resource = res;
-   site = e_gadget_site_get(inst->obj);
+   site = e_gadget_site_get(inst->box);
    e_gadget_send_gadget_orient(res, e_gadget_site_orient_get(site));
    e_gadget_send_gadget_gravity(res, e_gadget_site_gravity_get(site));
    e_gadget_send_gadget_anchor(res, e_gadget_site_anchor_get(site));
@@ -411,6 +415,109 @@ ar_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
    wl_resource_set_implementation(res, ar_interface, inst->allowed_pids, NULL);
 }
 
+static void
+child_close(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+   Evas_Object *ext;
+
+   inst->popup = NULL;
+   ext = evas_object_data_get(obj, "extracted");
+   elm_box_unpack_all(obj);
+   inst->extracted = eina_list_remove(inst->extracted, ext);
+   evas_object_hide(ext);
+}
+
+static void
+child_added(void *data, Evas_Object *obj, void *event_info)
+{
+   Evas_Object *popup, *bx;
+   E_Zone *zone = e_comp_object_util_zone_get(obj);
+   Instance *inst = data;
+
+   if (!efl_wl_surface_extract(event_info)) return;
+   inst->extracted = eina_list_append(inst->extracted, event_info);
+
+   popup = elm_popup_add(e_comp->elm);
+   E_EXPAND(popup);
+   evas_object_layer_set(popup, E_LAYER_POPUP);
+   elm_popup_allow_events_set(popup, 1);
+   elm_popup_scrollable_set(popup, 1);
+
+   bx = elm_box_add(popup);
+   E_EXPAND(event_info);
+   E_FILL(event_info);
+   elm_box_homogeneous_set(bx, 1);
+   evas_object_show(bx);
+   elm_box_pack_end(bx, event_info);
+   elm_object_content_set(popup, bx);
+
+   inst->popup = popup = e_comp_object_util_add(popup, E_COMP_OBJECT_TYPE_NONE);
+   evas_object_layer_set(popup, E_LAYER_POPUP);
+   evas_object_move(popup, zone->x, zone->y);
+   evas_object_resize(popup, zone->w / 4, zone->h / 3);
+   e_comp_object_util_center(popup);
+   evas_object_show(popup);
+   e_comp_object_util_autoclose(popup, NULL, e_comp_object_util_autoclose_on_escape, NULL);
+   evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, child_close, inst);
+   evas_object_data_set(bx, "extracted", event_info);
+   e_comp_grab_input(1, 1);
+   evas_object_focus_set(event_info, 1);
+}
+
+static void
+popup_del(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+   Evas_Object *ext;
+
+   inst->ctxpopup = NULL;
+   ext = evas_object_data_get(obj, "extracted");
+   elm_box_unpack_all(obj);
+   inst->extracted = eina_list_remove(inst->extracted, ext);
+   evas_object_hide(ext);
+}
+
+static void
+popup_dismissed(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   evas_object_del(obj);
+}
+
+static void
+popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+   elm_ctxpopup_dismiss(inst->ctxpopup);
+}
+
+static void
+popup_added(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   Instance *inst = data;
+   Evas_Object *bx;
+
+   if (!efl_wl_surface_extract(event_info)) return;
+   inst->extracted = eina_list_append(inst->extracted, event_info);
+
+   inst->ctxpopup = elm_ctxpopup_add(inst->box);
+   elm_object_style_set(inst->ctxpopup, "noblock");
+   evas_object_smart_callback_add(inst->ctxpopup, "dismissed", popup_dismissed, inst);
+   evas_object_event_callback_add(event_info, EVAS_CALLBACK_DEL, popup_hide, inst);
+
+   bx = elm_box_add(inst->ctxpopup);
+   elm_box_homogeneous_set(bx, 1);
+   evas_object_show(bx);
+   elm_box_pack_end(bx, event_info);
+   evas_object_data_set(bx, "extracted", event_info);
+   evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, popup_del, inst);
+   elm_object_content_set(inst->ctxpopup, bx);
+
+   e_gadget_util_ctxpopup_place(inst->box, inst->ctxpopup, NULL);
+   evas_object_show(inst->ctxpopup);
+   evas_object_focus_set(event_info, 1);
+}
+
 static Evas_Object *
 runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
 {
@@ -436,9 +543,14 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    inst->ci->inst = inst;
    inst->allowed_pids = eina_hash_int32_new(NULL);
    inst->obj = efl_wl_add(e_comp->evas);
+   E_EXPAND(inst->obj);
+   E_FILL(inst->obj);
+   evas_object_show(inst->obj);
    efl_wl_aspect_set(inst->obj, 1);
    efl_wl_minmax_set(inst->obj, 1);
    efl_wl_global_add(inst->obj, &e_gadget_interface, 1, inst, gadget_bind);
+   evas_object_smart_callback_add(inst->obj, "child_added", child_added, inst);
+   evas_object_smart_callback_add(inst->obj, "popup_added", popup_added, inst);
    e_comp_wl_extension_action_route_interface_get(&ar_version);
    efl_wl_global_add(inst->obj, &action_route_interface, ar_version, inst, ar_bind);
    evas_object_data_set(inst->obj, "runner", inst);
@@ -449,8 +561,11 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    evas_object_smart_callback_add(parent, "gadget_site_gravity", runner_site_gravity, inst);
    runner_run(inst);
    ecore_exe_data_set(inst->exe, inst);
-   evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_DEL, runner_del, inst);
-   return inst->obj;
+   evas_object_event_callback_add(inst->box, EVAS_CALLBACK_DEL, runner_del, inst);
+   inst->box = elm_box_add(e_comp->elm);
+   elm_box_homogeneous_set(inst->box, 1);
+   elm_box_pack_end(inst->box, inst->obj);
+   return inst->box;
 }
 
 static Eina_Bool
@@ -466,7 +581,7 @@ runner_exe_del(void *d EINA_UNUSED, int t EINA_UNUSED, Ecore_Exe_Event_Del *ev)
         ecore_exe_data_set(inst->exe, inst);
         break;
       case EXIT_MODE_DELETE:
-        e_gadget_del(inst->obj);
+        e_gadget_del(inst->box);
         break;
      }
    return ECORE_CALLBACK_RENEW;
