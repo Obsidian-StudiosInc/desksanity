@@ -14,7 +14,6 @@ typedef struct Config_Item
 {
    int id;
    int exit_mode;
-   Eina_Bool allow_events;
    Eina_Stringshare *cmd;
    void *inst;
    Eina_Bool cmd_changed : 1;
@@ -115,17 +114,6 @@ _config_label_add(Evas_Object *tb, const char *txt, int row)
 }
 
 static void
-_config_events_changed(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
-{
-   Config_Item *ci = data;
-   Instance *inst = ci->inst;
-
-   if (inst)
-     evas_object_pass_events_set(inst->obj, !ci->allow_events);
-   e_config_save_queue();
-}
-
-static void
 _config_cmd_changed(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
    Config_Item *ci = data;
@@ -201,22 +189,6 @@ config_runner(Config_Item *ci, E_Zone *zone)
    elm_table_pack(tb, o, 1, row++, 1, 1);
 
 
-   /* FIXME */
-ci->allow_events = 1;
-   _config_label_add(tb, D_("Allow events"), row);
-   o = elm_check_add(tb);
-elm_object_disabled_set(o, 1);
-   E_FILL(o);
-   evas_object_show(o);
-   elm_object_style_set(o, "toggle");
-   elm_object_part_text_set(o, "on", D_("Yes"));
-   elm_object_part_text_set(o, "off", D_("No"));
-   elm_check_state_pointer_set(o, &ci->allow_events);
-   elm_object_disabled_set(o, 1);
-   evas_object_smart_callback_add(o, "changed", _config_events_changed, ci);
-   evas_object_data_set(o, "table", tb);
-   elm_table_pack(tb, o, 1, row++, 1, 1);
-
    popup = e_comp_object_util_add(popup, E_COMP_OBJECT_TYPE_NONE);
    evas_object_layer_set(popup, E_LAYER_POPUP);
    evas_object_move(popup, zone->x, zone->y);
@@ -250,8 +222,6 @@ _conf_item_get(int *id)
      ci->id = rconfig->items ? eina_list_count(rconfig->items) + 1 : 1;
    else
      ci->id = -1;
-
-   ci->allow_events = 0;
 
    if (ci->id < 1) return ci;
    rconfig->items = eina_list_append(rconfig->items, ci);
@@ -477,7 +447,6 @@ runner_create(Evas_Object *parent, int *id, E_Gadget_Site_Orient orient)
    evas_object_smart_callback_add(parent, "gadget_removed", runner_removed, inst);
    evas_object_smart_callback_add(parent, "gadget_site_anchor", runner_site_anchor, inst);
    evas_object_smart_callback_add(parent, "gadget_site_gravity", runner_site_gravity, inst);
-   evas_object_pass_events_set(inst->obj, !inst->ci->allow_events);
    runner_run(inst);
    ecore_exe_data_set(inst->exe, inst);
    evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_DEL, runner_del, inst);
@@ -514,7 +483,6 @@ runner_init(void)
 #define T Config_Item
 #define D conf_item_edd
    E_CONFIG_VAL(D, T, id, INT);
-   E_CONFIG_VAL(D, T, allow_events, UCHAR);
    E_CONFIG_VAL(D, T, exit_mode, INT);
    E_CONFIG_VAL(D, T, cmd, STR);
 
