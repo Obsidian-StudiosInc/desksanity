@@ -175,7 +175,7 @@ main(int argc, char *argv[])
    evas_object_smart_callback_add(win, "gadget_action_end", _menu_cb_post, ly);
    evas_object_smart_callback_add(win, "gadget_action_deleted", action_deleted, NULL);
    evas_object_event_callback_add(ly, EVAS_CALLBACK_MOUSE_DOWN, _button_cb_mouse_down, NULL);
-   evas_object_smart_callback_call(win, "gadget_action_request", "menu_show");
+   evas_object_smart_callback_call(win, "gadget_action_request", "menu_show_object");
    evas_object_show(win);
    ecore_main_loop_begin();
    return 0;
