@@ -41,6 +41,14 @@ mouse_button(void *data EINA_UNUSED, Evas *e EINA_UNUSED, Evas_Object *obj, void
              return;
           }
      }
+   else
+     {
+        if (popup)
+          {
+             evas_object_del(popup);
+             return;
+          }
+     }
    win = elm_win_add(elm_win_get(obj), "win", type);
    elm_win_alpha_set(win, 1);
    if (ev->button == 3)
