@@ -500,6 +500,7 @@ popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *
 {
    Instance *inst = data;
    elm_ctxpopup_dismiss(inst->ctxpopup);
+   evas_object_del(elm_object_content_get(inst->ctxpopup));
 }
 
 static void
