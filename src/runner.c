@@ -3,6 +3,11 @@
 #include <Efl_Wl.h>
 #include "e-gadget-server-protocol.h"
 #include "action_route-server-protocol.h"
+#include <sched.h>
+
+#ifdef __GNUC__
+# pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 
 typedef enum
 {
@@ -41,6 +46,8 @@ typedef struct RConfig
 static E_Config_DD *conf_edd = NULL;
 static E_Config_DD *conf_item_edd = NULL;
 
+static int ns_fd = -1;
+
 static RConfig *rconfig;
 static Eina_List *instances;
 static Eina_List *wizards;
@@ -75,7 +82,11 @@ runner_run(Instance *inst)
    snprintf(buf, sizeof(buf), "%d", inst->ci->id);
    e_util_env_set("E_GADGET_ID", buf);
 
+   unshare(CLONE_NEWPID);
+
    inst->exe = efl_wl_run(inst->obj, inst->ci->cmd);
+
+   setns(ns_fd, CLONE_NEWPID);
 
    e_util_env_set("E_GADGET_ID", NULL);
    e_util_env_set("LD_PRELOAD", preload);
@@ -796,6 +807,12 @@ runner_init(void)
    E_LIST_HANDLER_APPEND(handlers, EIO_MONITOR_ERROR, monitor_error, NULL);
 
    sandbox_gadgets = eina_hash_string_superfast_new((Eina_Free_Cb)efreet_desktop_free);
+   {
+      char buf[PATH_MAX];
+
+      snprintf(buf, sizeof(buf), "/proc/%d/ns/pid", getpid());
+      ns_fd = open(buf, O_RDONLY);
+   }
 }
 
 EINTERN void
@@ -827,6 +844,8 @@ runner_shutdown(void)
    E_FREE_LIST(handlers, ecore_event_handler_del);
    E_FREE_FUNC(sandbox_gadgets, eina_hash_free);
    E_FREE_FUNC(gadget_lister, eio_file_cancel);
+   close(ns_fd);
+   ns_fd = -1;
 }
 
 EINTERN void
