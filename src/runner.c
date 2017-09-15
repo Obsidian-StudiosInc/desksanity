@@ -480,6 +480,7 @@ child_added(void *data, Evas_Object *obj, void *event_info)
    evas_object_resize(popup, zone->w / 4, zone->h / 3);
    e_comp_object_util_center(popup);
    evas_object_show(popup);
+   e_comp_canvas_feed_mouse_up(0);
    e_comp_object_util_autoclose(popup, NULL, e_comp_object_util_autoclose_on_escape, NULL);
    evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, child_close, inst);
    evas_object_data_set(bx, "extracted", event_info);
