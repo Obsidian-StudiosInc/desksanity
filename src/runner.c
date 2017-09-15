@@ -588,10 +588,10 @@ gadget_create(Evas_Object *parent, Config_Item *ci, int *id, E_Gadget_Site_Orien
    evas_object_smart_callback_add(parent, "gadget_site_anchor", runner_site_anchor, inst);
    evas_object_smart_callback_add(parent, "gadget_site_gravity", runner_site_gravity, inst);
    runner_run(inst);
-   e_util_size_debug_set(inst->obj, 1);
    ecore_exe_data_set(inst->exe, inst);
-   evas_object_event_callback_add(inst->box, EVAS_CALLBACK_DEL, runner_del, inst);
    inst->box = elm_box_add(e_comp->elm);
+   e_util_size_debug_set(inst->box, 1);
+   evas_object_event_callback_add(inst->box, EVAS_CALLBACK_DEL, runner_del, inst);
    evas_object_event_callback_add(inst->obj, EVAS_CALLBACK_CHANGED_SIZE_HINTS, runner_hints, inst);
    elm_box_homogeneous_set(inst->box, 1);
    elm_box_pack_end(inst->box, inst->obj);
