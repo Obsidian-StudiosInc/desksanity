@@ -484,7 +484,6 @@ child_added(void *data, Evas_Object *obj, void *event_info)
    e_comp_object_util_autoclose(popup, NULL, e_comp_object_util_autoclose_on_escape, NULL);
    evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, child_close, inst);
    evas_object_data_set(bx, "extracted", event_info);
-   e_comp_grab_input(1, 1);
    evas_object_focus_set(event_info, 1);
 }
 
