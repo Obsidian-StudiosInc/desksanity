@@ -116,7 +116,8 @@ dir_module_e = join_paths([dep_e.get_pkgconfig_variable('modules'), 'desksanity'
 edje_cc = find_program('edje_cc')
 
 install_data(['e-module-desksanity.edj', 'module.desktop'],
-	install_dir: dir_module_e)
+	install_dir: dir_module_e,
+	install_mode: 'rw-rw-r--')
 
 build_files = [
 	'src/e_mod_main.h',
