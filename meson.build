@@ -109,7 +109,7 @@ add_global_arguments('-DPACKAGE_LIB_DIR="@0@"'.format(dir_lib), language: 'c')
 add_global_arguments('-DPACKAGE_DATA_DIR="@0@"'.format(join_paths(dir_data, meson.project_name())), language: 'c')
 add_global_arguments('-DPACKAGE_SYSCONF_DIR="@0@"'.format(dir_sysconf), language: 'c')
 
-dep_efl_wl = dependency('efl-wl', required: false)
+dep_efl_wl = dependency('efl-wl', version: '1.21', required: false)
 dep_e = dependency('enlightenment')
 
 dir_module_e = join_paths([dep_e.get_pkgconfig_variable('modules'), 'desksanity'])
