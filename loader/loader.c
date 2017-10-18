@@ -260,6 +260,7 @@ win_add(Evas_Object *win)
    eina_hash_list_append(wins, &d, win);
    evas_object_smart_callback_add(win, "gadget_action_request", action_request, d);
    evas_object_event_callback_add(win, EVAS_CALLBACK_DEL, win_del, NULL);
+   elm_win_borderless_set(win, 1);
    return win;
 }
 
