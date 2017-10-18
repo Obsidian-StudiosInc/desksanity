@@ -461,6 +461,7 @@ child_added(void *data, Evas_Object *obj, void *event_info)
    inst->extracted = eina_list_append(inst->extracted, event_info);
 
    popup = elm_popup_add(e_comp->elm);
+   e_comp_object_util_del_list_append(event_info, popup);
    E_EXPAND(popup);
    evas_object_layer_set(popup, E_LAYER_POPUP);
    elm_popup_allow_events_set(popup, 1);
