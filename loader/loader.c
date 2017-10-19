@@ -188,6 +188,16 @@ static const struct action_route_bind_listener _ar_bind_interface =
 };
 
 static void
+uriopen_request(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
+{
+   Ecore_Wl2_Display *d = data;
+   const char *uri = event_info;
+   struct e_gadget *gadget_global = eina_hash_find(gadget_globals, &d);
+
+   e_gadget_open_uri(gadget_global, uri);
+}
+
+static void
 action_request(void *data, Evas_Object *obj, void *event_info)
 {
    Gadget_Action *ga;
@@ -259,6 +269,7 @@ win_add(Evas_Object *win)
      wins = eina_hash_pointer_new(NULL);
    eina_hash_list_append(wins, &d, win);
    evas_object_smart_callback_add(win, "gadget_action_request", action_request, d);
+   evas_object_smart_callback_add(win, "gadget_open_uri", uriopen_request, d);
    evas_object_event_callback_add(win, EVAS_CALLBACK_DEL, win_del, NULL);
    elm_win_borderless_set(win, 1);
    return win;

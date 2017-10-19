@@ -388,6 +388,20 @@ gadget_unbind(struct wl_resource *resource)
 }
 
 static void
+gadget_open_uri(struct wl_client *client EINA_UNUSED, struct wl_resource *resource, const char *uri)
+{
+   Instance *inst = wl_resource_get_user_data(resource);
+
+   /* FIXME: rate limit? */
+   e_util_open(uri, NULL);
+}
+
+static const struct e_gadget_interface _gadget_interface =
+{
+   .open_uri = gadget_open_uri,
+};
+
+static void
 gadget_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
    struct wl_resource *res;
@@ -403,7 +417,7 @@ gadget_bind(struct wl_client *client, void *data, uint32_t version, uint32_t id)
      }
 
    res = wl_resource_create(client, &e_gadget_interface, version, id);
-   wl_resource_set_implementation(res, NULL, data, gadget_unbind);
+   wl_resource_set_implementation(res, &_gadget_interface, data, gadget_unbind);
    inst->gadget_resource = res;
    site = e_gadget_site_get(inst->box);
    e_gadget_send_gadget_orient(res, e_gadget_site_orient_get(site));
