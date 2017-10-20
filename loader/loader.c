@@ -275,6 +275,16 @@ win_add(Evas_Object *win)
    return win;
 }
 
+int
+eina_init(void)
+{
+   int (*_eina_init)(void) = dlsym(RTLD_NEXT, __func__);
+
+   if (wins) return _eina_init();
+   if (getenv("RUNNER_DEBUG")) raise(SIGSTOP);
+   return _eina_init();
+}
+
 Evas_Object *
 elm_win_util_dialog_add(Evas_Object *parent, const char *name, const char *title)
 {
