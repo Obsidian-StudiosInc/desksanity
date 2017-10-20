@@ -581,6 +581,7 @@ popup_added(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    evas_object_event_callback_add(event_info, EVAS_CALLBACK_CHANGED_SIZE_HINTS, popup_hints, inst);
    evas_object_show(bx);
    elm_box_pack_end(bx, event_info);
+   elm_box_recalculate(bx);
    evas_object_data_set(bx, "extracted", event_info);
    evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, popup_del, inst);
    elm_object_content_set(inst->ctxpopup, bx);
