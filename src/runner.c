@@ -530,18 +530,44 @@ popup_hide(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *
 }
 
 static void
+popup_hints_update(Evas_Object *obj)
+{
+   double w, h;
+   E_Zone *zone = e_comp_object_util_zone_get(obj);
+
+   evas_object_size_hint_weight_get(obj, &w, &h);
+   w = E_CLAMP(w, 0, 0.5);
+   h = E_CLAMP(h, 0, 0.5);
+
+   if ((w > 0) && (h > 0))
+     {
+        evas_object_size_hint_min_set(obj, w * zone->w, h * zone->h);
+        evas_object_size_hint_max_set(obj, w * zone->w, h * zone->h);
+     }
+   if ((!EINA_DBL_NONZERO(w)) && (!EINA_DBL_NONZERO(h)))
+     {
+        int ww, hh;
+        evas_object_geometry_get(obj, NULL, NULL, &ww, &hh);
+        evas_object_size_hint_min_set(obj, ww, hh);
+     }
+   E_WEIGHT(obj, 0, 0);
+}
+
+static void
+popup_hints(void *data, Evas *e EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+   evas_object_event_callback_del_full(obj, EVAS_CALLBACK_CHANGED_SIZE_HINTS, popup_hints, data);
+   popup_hints_update(obj);
+   evas_object_event_callback_add(obj, EVAS_CALLBACK_CHANGED_SIZE_HINTS, popup_hints, data);
+}
+
+static void
 popup_added(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Instance *inst = data;
-   Evas_Object *bx, *tb, *r;
-   E_Zone *zone;
-   double w, h;
+   Evas_Object *bx;
 
    if (!efl_wl_surface_extract(event_info)) return;
-   zone = e_zone_current_get();
-   evas_object_size_hint_weight_get(event_info, &w, &h);
-   w = E_CLAMP(w, 0, 0.5);
-   h = E_CLAMP(h, 0, 0.5);
    inst->extracted = eina_list_append(inst->extracted, event_info);
 
    inst->ctxpopup = elm_ctxpopup_add(inst->box);
@@ -549,29 +575,15 @@ popup_added(void *data, Evas_Object *obj EINA_UNUSED, void *event_info)
    evas_object_smart_callback_add(inst->ctxpopup, "dismissed", popup_dismissed, inst);
    evas_object_event_callback_add(event_info, EVAS_CALLBACK_DEL, popup_hide, inst);
 
-   tb = elm_table_add(inst->ctxpopup);
-   evas_object_show(tb);
-
    bx = elm_box_add(inst->ctxpopup);
-   elm_table_pack(tb, bx, 0, 0, 1, 1);
-   if (w > 0)
-     {
-        r = evas_object_rectangle_add(e_comp->evas);
-        evas_object_size_hint_min_set(r, w * zone->w, 0);
-        elm_table_pack(tb, bx, 0, 1, 2, 1);
-     }
-   if (h > 0)
-     {
-        r = evas_object_rectangle_add(e_comp->evas);
-        evas_object_size_hint_min_set(r, 0, h * zone->h);
-        elm_table_pack(tb, bx, 1, 0, 1, 2);
-     }
-   elm_box_homogeneous_set(bx, 1);
+   popup_hints_update(event_info);
+   E_FILL(event_info);
+   evas_object_event_callback_add(event_info, EVAS_CALLBACK_CHANGED_SIZE_HINTS, popup_hints, inst);
    evas_object_show(bx);
    elm_box_pack_end(bx, event_info);
    evas_object_data_set(bx, "extracted", event_info);
    evas_object_event_callback_add(bx, EVAS_CALLBACK_DEL, popup_del, inst);
-   elm_object_content_set(inst->ctxpopup, tb);
+   elm_object_content_set(inst->ctxpopup, bx);
 
    e_gadget_util_ctxpopup_place(inst->box, inst->ctxpopup, NULL);
    evas_object_show(inst->ctxpopup);
