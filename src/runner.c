@@ -701,6 +701,31 @@ sandbox_create(Evas_Object *parent, const char *type, int *id, E_Gadget_Site_Ori
    if (*id > 0) ci = _conf_item_get(id);
    if ((*id < 0) || (ci && ci->inst))
      {
+        if (ed->x)
+          {
+             const char *orients = eina_hash_find(ed->x, "X-Gadget-Orientations");
+
+             if (orients)
+               {
+                  const char *ostring[] =
+                  {
+                     "None",
+                     "Horizontal",
+                     "Vertical",
+                  };
+                  char *v, *val = strdup(orients);
+                  Eina_Bool found = EINA_FALSE;
+
+                  for (v = strtok(val, ";"); v; v = strtok(NULL, ";"))
+                    if (!strcmp(v, ostring[orient]))
+                      {
+                         found = EINA_TRUE;
+                         break;
+                      }
+                  free(val);
+                  if (!found) return NULL;
+               }
+          }
         if (ed->icon)
           {
              int w, h;
