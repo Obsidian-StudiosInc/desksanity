@@ -40,7 +40,8 @@ endif
 endforeach
 add_global_arguments(dev_cflags, language: 'c')
 
-release = 'ver-0.22'
+dep_e = dependency('enlightenment')
+release = dep_e.get_pkgconfig_variable('release')
 host_os = host_machine.system()
 if host_os == 'linux'
 	if cc.has_header_symbol('features.h', '__UCLIBC__')
@@ -109,8 +110,7 @@ add_global_arguments('-DPACKAGE_LIB_DIR="@0@"'.format(dir_lib), language: 'c')
 add_global_arguments('-DPACKAGE_DATA_DIR="@0@"'.format(join_paths(dir_data, meson.project_name())), language: 'c')
 add_global_arguments('-DPACKAGE_SYSCONF_DIR="@0@"'.format(dir_sysconf), language: 'c')
 
-dep_efl_wl = dependency('efl-wl', version: '>= 1.20.99', required: false)
-dep_e = dependency('enlightenment')
+dep_efl_wl = dependency('efl-wl', required: false)
 
 dir_module_e = join_paths([dep_e.get_pkgconfig_variable('modules'), 'desksanity'])
 edje_cc = find_program('edje_cc')
@@ -132,45 +132,9 @@ build_files = [
 ]
 
 if dep_efl_wl.found() == true and dep_e.get_pkgconfig_variable('wayland') == 'true'
-	build_files += 'src/runner.c'
 	config_h.set('HAVE_RUNNER', '1')
 
-	wayland_scanner = find_program('wayland-scanner')
-	gen_scanner_client = generator(wayland_scanner,
-			output: '@BASENAME@-client-protocol.h',
-			arguments: ['client-header', '@INPUT@', '@OUTPUT@'])
-	gen_scanner_server = generator(wayland_scanner,
-			output: '@BASENAME@-server-protocol.h',
-			arguments: ['server-header', '@INPUT@', '@OUTPUT@'])
-	gen_scanner_impl = generator(wayland_scanner,
-			output: '@BASENAME@-protocol.c',
-			arguments: ['code', '@INPUT@', '@OUTPUT@'])
-	protos = [
-		'e-gadget.xml',
-		'action_route.xml',
-	]
-
-	loader_src = ['loader/loader.c']
-	foreach proto: protos
-		loader_src += gen_scanner_client.process(proto)
-		loader_src += gen_scanner_impl.process(proto)
-	endforeach
-	foreach proto: protos
-		build_files += gen_scanner_server.process(proto)
-		build_files += gen_scanner_impl.process(proto)
-	endforeach
-
-	shared_library('loader', loader_src,
-		name_prefix: '',
-		dependencies: [
-			dependency('elementary'),
-			dependency('ecore-wl2'),
-			dependency('wayland-client'),
-			cc.find_library('uuid')],
-		install_dir: join_paths([dir_module_e, module_arch]),
-		install: true)
-
-	dir_gadgets = join_paths([dir_lib, 'enlightenment/gadgets', dep_e.get_pkgconfig_variable('release')])
+	dir_gadgets = join_paths([dir_lib, 'enlightenment/gadgets', module_arch])
 	executable('e_gadget_start',
 		'loader/start.c',
 		c_args: '-fPIE',

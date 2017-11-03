@@ -97,6 +97,8 @@ main(int argc, char *argv[])
    elm_win_alpha_set(win, EINA_TRUE);
 
    ic = elm_icon_add(win);
+   elm_object_tooltip_text_set(ic, "this is some test text which is probably going to be a lot longer than the overall icon size haHAA");
+   elm_object_tooltip_window_mode_set(ic, 1);
    snprintf(buf, sizeof(buf), "%s/images/logo.png", elm_app_data_dir_get());
    elm_image_file_set(ic, buf, NULL);
    elm_image_object_size_get(ic, &w, &h);

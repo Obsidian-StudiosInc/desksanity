@@ -106,9 +106,4 @@ EINTERN void zoom_shutdown(void);
 EINTERN void mag_init(void);
 EINTERN void mag_shutdown(void);
 
-#ifdef HAVE_RUNNER
-EINTERN void runner_init(void);
-EINTERN void runner_shutdown(void);
-EINTERN void runner_save(void);
-#endif
 #endif
