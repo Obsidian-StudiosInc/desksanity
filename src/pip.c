@@ -30,6 +30,7 @@ pips_noedit()
 
    editing = EINA_FALSE;
    ds_fade_end(NULL, pips_noedit);
+   e_comp_ungrab_input(1, 1);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
@@ -50,6 +51,7 @@ pips_edit(void)
    if (e_comp->nocomp) return;
    editing = EINA_TRUE;
    ds_fade_setup(pips_noedit);
+   e_comp_grab_input(1, 1);
    it = eina_hash_iterator_data_new(pips);
    EINA_ITERATOR_FOREACH(it, pip)
      {
