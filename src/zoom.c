@@ -480,6 +480,7 @@ _hiding(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, c
    EINA_LIST_FREE(clients, m)
      {
         e = evas_object_smart_parent_get(m);
+        evas_object_pass_events_set(e, 1);
         edje_object_signal_emit(e, "e,action,hide", "e");
      }
 }
