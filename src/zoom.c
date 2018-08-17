@@ -474,7 +474,7 @@ _zoom_client_property(void *d EINA_UNUSED, int t EINA_UNUSED, E_Event_Client_Pro
 static void
 _hiding(void *data EINA_UNUSED, Evas_Object *obj, const char *sig EINA_UNUSED, const char *src EINA_UNUSED)
 {
-   Eina_List *clients = evas_object_data_get(obj, "__DSCLIENTS");
+   Eina_List *clients = evas_object_data_del(obj, "__DSCLIENTS");
    Evas_Object *m, *e;
 
    EINA_LIST_FREE(clients, m)
